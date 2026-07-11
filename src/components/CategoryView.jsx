@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Star, ShieldCheck, ShoppingCart, ChevronUp, ChevronDown } from 'lucide-react';
+import { Star, ShieldCheck, ShoppingCart, ChevronUp, ChevronDown, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { getFullCatalog } from '../catalogData';
 
 export default function CategoryView({ 
   activeCategory, 
@@ -20,6 +22,13 @@ export default function CategoryView({
   const [selectedInstallTypes, setSelectedInstallTypes] = useState([]);
   const [selectedTechs, setSelectedTechs] = useState([]);
   const [selectedRoFeatures, setSelectedRoFeatures] = useState([]);
+
+  const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
+  const [selectedEnquiryProduct, setSelectedEnquiryProduct] = useState(null);
+  const [enquiryName, setEnquiryName] = useState('');
+  const [enquiryPhone, setEnquiryPhone] = useState('');
+  const [enquiryAddress, setEnquiryAddress] = useState('');
+  const [enquirySuccess, setEnquirySuccess] = useState(false);
 
   // Sidebar Collapse states
   const [isPriceExpanded, setIsPriceExpanded] = useState(true);
@@ -44,66 +53,7 @@ export default function CategoryView({
     'New Energy': ['Solar Panels', 'Solar Inverters']
   };
 
-  // Catalog Data with exact base pricing, descriptions, and filtering metadata
-  const catalog = {
-    'RO Purifiers': [
-      { id: 'kent-grand-plus', name: 'KENT Grand Plus RO Purifier', price: 19499, basePrice: 24000, rating: 4.8, reviews: 843, specs: 'RO + UV + UF + TDS Control', desc: 'KENT Grand Plus is India\'s most popular water purifier, combining patented Mineral RO technology with zero water wastage.', features: ['9.2L Tank', 'In-tank UV', 'Zero Wastage'], color: ['White', 'Black'], installType: 'Wall Mounted', tech: 'RO + UV + UF + TDS Control', roFeatures: ['Best Selling', 'Zero Water Wastage Technology'] },
-      { id: 'kent-elegant', name: 'KENT Elegant Wallmount RO', price: 16500, basePrice: 19500, rating: 4.6, reviews: 312, specs: 'RO + UF + TDS Control', desc: 'KENT Elegant provides highly reliable double purification with a wall-mounted space-saving compact design.', features: ['8L Tank', 'Zero Wastage'], color: ['White'], installType: 'Wall Mounted', tech: 'RO + UF + TDS Control', roFeatures: ['Zero Water Wastage Technology'] },
-      { id: 'kent-prime-plus', name: 'KENT Prime Plus RO System', price: 18499, basePrice: 22000, rating: 4.7, reviews: 190, specs: 'RO + UV + UF + TDS', desc: 'KENT Prime Plus features a beautiful digital screen for real-time monitoring of filter performance and water purity.', features: ['9L Tank', 'Digital Display'], color: ['White'], installType: 'Counter Top', tech: 'RO + UV + UF + TDS Control', roFeatures: ['Zero Water Wastage Technology'] },
-      { id: 'kent-supreme', name: 'KENT Supreme Alkaline RO', price: 20500, basePrice: 26000, rating: 4.8, reviews: 142, specs: 'RO + UF + UV + Alkaline + TDS Control', desc: 'KENT Supreme uses advanced alkaline pH filters to restore healthy minerals and reduce acidity in purified water.', features: ['Zero Water Wastage', 'Alkaline pH control'], color: ['Black'], installType: 'Under The Counter', tech: 'RO + UF + UV + Alkaline + TDS Control', roFeatures: ['Best Selling', 'Zero Water Wastage Technology'] },
-      { id: 'kent-super-star', name: 'KENT Super Star Active Copper', price: 17499, basePrice: 21500, rating: 4.7, reviews: 205, specs: 'RO + UV + UF + Copper + TDS', desc: 'KENT Super Star is equipped with an active copper cartridge that instantly infuses copper ions for wellness benefits.', features: ['Active Copper filter', 'Auto start/stop'], color: ['White', 'Black'], installType: 'Wall Mounted', tech: 'RO + UV + UF + Copper + TDS Control', roFeatures: [] },
-      { id: 'kent-grand-alkaline', name: 'KENT Grand Copper Alkaline RO', price: 22500, basePrice: 28500, rating: 4.9, reviews: 68, specs: 'RO + UV + UF + Alkaline + Copper + TDS', desc: 'KENT Grand Copper Alkaline provides top-tier filtration, infusing copper and maintaining a balanced alkaline pH level.', features: ['Copper + Alkaline boost', 'Premium design'], color: ['White'], installType: 'Wall Mounted', tech: 'RO + UV + UF + Alkaline + Copper + TDS Control', roFeatures: ['Zero Water Wastage Technology'] }
-    ],
-    'Hydrogen Rich Water': [
-      { id: 'kent-hydrogen-stand', name: 'KENT Hydrogen Water Stand', price: 36000, basePrice: 42000, rating: 4.9, reviews: 45, specs: 'Hydrogen Generator + Filter', desc: 'KENT Hydrogen Water Stand uses cutting-edge tech to generate antioxidant-rich hydrogen water for active lifestyles.', features: ['Rich Antioxidants', 'Instant Dispenser'], color: ['Black'], installType: 'Counter Top', tech: 'RO + UV + UF + TDS Control', roFeatures: [] }
-    ],
-    'UV Purifiers': [
-      { id: 'kent-ultra-star', name: 'KENT Ultra Star UV/UF', price: 9499, basePrice: 11500, rating: 4.7, reviews: 154, specs: 'UV + UF double purification', desc: 'Instant double purification with an elegant transparent in-tank UV disinfection system.', features: ['In-tank UV', 'Compact design'], color: ['White'], installType: 'Wall Mounted', tech: 'RO + UF + TDS Control', roFeatures: [] }
-    ],
-    'Gravity Purifiers': [
-      { id: 'kent-gold', name: 'KENT Gold Optima gravity', price: 3200, basePrice: 4000, rating: 4.5, reviews: 412, specs: 'UF Membrane Gravity Filter', desc: 'Non-electric, chemical-free gravity water purifier with clean hollow-fiber UF membrane filter.', features: ['10L Storage', 'Non-electric'], color: ['White'], installType: 'Counter Top', tech: 'RO + UF + TDS Control', roFeatures: [] }
-    ],
-    'Commercial Purifier': [
-      { id: 'kent-comm-25', name: 'KENT Commercial RO 25L', price: 29000, basePrice: 35000, rating: 4.8, reviews: 88, specs: 'High Capacity Commercial RO', desc: 'High-yield commercial purifier matching requirements for offices, schools, and small food outlets.', features: ['25 L/hr Flow', 'Dual Pump Tech'], color: ['Black'], installType: 'Wall Mounted', tech: 'RO + UV + UF + TDS Control', roFeatures: [] }
-    ],
-    'Bathroom Softeners': [
-      { id: 'kent-bath-soft', name: 'KENT Bathroom Softener', price: 8500, basePrice: 10000, rating: 4.6, reviews: 92, specs: 'Hardness Removal for Bathing', desc: 'Converts hard water to soft water to protect skin, hair, and plumbing scale buildup.', features: ['Prevents scale', 'Soft skin/hair'], color: ['Black'], installType: 'Wall Mounted' }
-    ],
-    'Washing Machine Softeners': [
-      { id: 'kent-washing-soft', name: 'KENT Washing Softener', price: 6200, basePrice: 7500, rating: 4.5, reviews: 48, specs: 'Scale prevention for Washers', desc: 'Compact softener that protects washing machine components and increases soap lathering.', features: ['Increases soap lather', 'Protects fabrics'], color: ['White'], installType: 'Wall Mounted' }
-    ],
-    'Automatic Softeners': [
-      { id: 'kent-autosoft-8l', name: 'KENT AutoSoft 8L Softener', price: 28000, basePrice: 32000, rating: 4.7, reviews: 142, specs: 'Automatic Hardness Filter', desc: 'Automatic household softener with electronic time-based regeneration cycles.', features: ['Time-based regeneration', 'Auto backwash'], color: ['Black'], installType: 'Under The Counter' }
-    ],
-    'Air Fryers': [
-      { id: 'kent-airfryer', name: 'KENT Digital Air Fryer', price: 7999, basePrice: 9999, rating: 4.7, reviews: 110, specs: 'Oil-Free Smart Frying', desc: 'Crispy frying with 80% less oil using digital one-touch pre-set cooking programs.', features: ['8 Pre-set menus', 'Rapid air circulation'], color: ['Black'], installType: 'Counter Top' }
-    ],
-    'Cold Pressed Juicers': [
-      { id: 'kent-juicer', name: 'KENT Cold Pressed Juicer', price: 12500, basePrice: 15000, rating: 4.8, reviews: 67, specs: 'Nutrient retaining juicer', desc: 'Squeezes fruits at low speeds to retain essential natural enzymes and fibers.', features: ['Low speed squeeze', 'Easy to clean'], color: ['Black'], installType: 'Counter Top' }
-    ],
-    'Bread Makers': [
-      { id: 'kent-breadmaker', name: 'KENT Bread Maker & Kneader', price: 8999, basePrice: 11000, rating: 4.6, reviews: 95, specs: 'Fully Automatic Dough Kneader', desc: 'One-touch smart bread maker that does kneading, rising, and baking automatically.', features: ['19 Program menus', 'One-touch operation'], color: ['White'], installType: 'Counter Top' }
-    ],
-    'Multi Cookers': [
-      { id: 'kent-multicooker', name: 'KENT Smart Multi Cooker', price: 3499, basePrice: 4500, rating: 4.4, reviews: 121, specs: 'Induction steam multi cooker', desc: 'Boil, steam, and cook meals instantly inside a single compact tabletop appliance.', features: ['Compact size', 'Overheat protection'], color: ['White'], installType: 'Counter Top' }
-    ],
-    'Air Purifiers': [
-      { id: 'kent-alps-plus', name: 'KENT Alps+ HEPA Purifier', price: 15999, basePrice: 19999, rating: 4.8, reviews: 202, specs: 'HEPA Filter + Carbon Adsorber', desc: 'Japanese HEPA technology combined with active carbon filters for 99.9% clean air.', features: ['PM2.5 Realtime display', 'UV LED sterilizer'], color: ['White'], installType: 'Counter Top' }
-    ],
-    'Vacuum Cleaners': [
-      { id: 'kent-zoom', name: 'KENT Zoom Vacuum', price: 9999, basePrice: 12000, rating: 4.5, reviews: 218, specs: 'Cordless Cyclonic HEPA Vacuum', desc: 'High performance cordless vacuum with washable HEPA filter and multi-nozzles.', features: ['Rechargeable battery', 'Handy stick utility'], color: ['Black'], installType: 'Wall Mounted' }
-    ],
-    'Vegetable Cleaners': [
-      { id: 'kent-veg-cleaner', name: 'KENT Ozone Veg Cleaner', price: 6500, basePrice: 8000, rating: 4.7, reviews: 310, specs: 'Ozone Disinfectant Desk model', desc: 'Uses active ozone to destroy chemical pesticides and bacterial pathogens on produce.', features: ['Kills bacteria/pesticides', 'Preserves freshness'], color: ['White'], installType: 'Counter Top' }
-    ],
-    'Solar Panels': [
-      { id: 'kent-solar-400w', name: 'KENT Solar Panel 400W Mono', price: 14500, basePrice: 18000, rating: 4.9, reviews: 34, specs: 'High efficiency solar panels', desc: 'Premium A-grade Mono PERC silicon cells for maximum solar charge efficiency.', features: ['A-Grade Silicon cells', 'Weather resistant'], color: ['Black'], installType: 'Wall Mounted' }
-    ],
-    'Solar Inverters': [
-      { id: 'kent-inverter-5kw', name: 'KENT Smart Grid Inverter 5kW', price: 42000, basePrice: 48000, rating: 4.8, reviews: 19, specs: 'Pure sine wave smart solar inverter', desc: 'Dual MPPT grid-connected inverter with built-in remote mobile status monitor.', features: ['Dual MPPT trackers', 'Mobile monitoring app'], color: ['Black'], installType: 'Wall Mounted' }
-    ]
-  };
-
+  const catalog = getFullCatalog();
   const currentProducts = catalog[activeSubCategory] || [];
 
   // Reset max price boundary and clear filters on subcategory switch
@@ -679,36 +629,47 @@ export default function CategoryView({
                       </span>
 
                       {/* Generative Kent RO Purifier Cabinet Mockup (Black or White) */}
-                      <div className={`w-20 h-28 bg-gradient-to-b ${
-                        isBlack ? 'from-[#2d3035] to-[#121212] border-slate-700' : 'from-blue-50 to-blue-200 border-white'
-                      } rounded-2xl border-4 shadow-lg flex flex-col justify-between p-2 relative transform transition-transform duration-300 group-hover:scale-110`}>
-                        
-                        {/* Top Copper panel console */}
-                        <div className="h-5 w-full bg-gradient-to-r from-amber-500 to-amber-700 rounded-xs border border-amber-600/30 flex items-center justify-center p-0.5">
-                          <div className="w-3 h-2 bg-slate-900 border border-slate-800 rounded-xs flex items-center justify-center">
-                            <div className="w-1 h-1 bg-[#FF5A00] rounded-full animate-pulse" />
-                          </div>
-                        </div>
+                      <Link to={`/products/${prod.id}`} className="transform transition-transform duration-300 group-hover:scale-110">
+                        {prod.image ? (
+                          <img
+                            src={prod.image}
+                            alt={prod.name}
+                            className="w-24 h-28 object-contain rounded-xl"
+                          />
+                        ) : (
+                          <div className={`w-20 h-28 bg-gradient-to-b ${
+                            isBlack ? 'from-[#2d3035] to-[#121212] border-slate-700' : 'from-blue-50 to-blue-200 border-white'
+                          } rounded-2xl border-4 shadow-lg flex flex-col justify-between p-2 relative`}>
+                            {/* Top Copper panel console */}
+                            <div className="h-5 w-full bg-gradient-to-r from-amber-500 to-amber-700 rounded-xs border border-amber-600/30 flex items-center justify-center p-0.5">
+                              <div className="w-3 h-2 bg-slate-900 border border-slate-800 rounded-xs flex items-center justify-center">
+                                <div className="w-1 h-1 bg-[#FF5A00] rounded-full animate-pulse" />
+                              </div>
+                            </div>
 
-                        {/* Dispensation cup under water stream */}
-                        <div className="flex-grow w-full flex items-center justify-center relative">
-                          <div className="absolute top-0 w-0.5 h-5 bg-cyan-400/80 rounded-full animate-pulse" />
-                          <div className="absolute bottom-1 w-5 h-7 bg-blue-100/50 border border-blue-400 rounded-b-md flex flex-col justify-end p-0.5">
-                            <div className="w-full h-2.5 bg-cyan-400/30 rounded-b-xs" />
-                          </div>
-                        </div>
+                            {/* Dispensation cup under water stream */}
+                            <div className="flex-grow w-full flex items-center justify-center relative">
+                              <div className="absolute top-0 w-0.5 h-5 bg-cyan-400/80 rounded-full animate-pulse" />
+                              <div className="absolute bottom-1 w-5 h-7 bg-blue-100/50 border border-blue-450 rounded-b-md flex flex-col justify-end p-0.5">
+                                <div className="w-full h-2.5 bg-cyan-400/30 rounded-b-xs" />
+                              </div>
+                            </div>
 
-                        <span className={`text-[4.5px] font-extrabold uppercase text-center ${
-                          isBlack ? 'text-white/40' : 'text-slate-500'
-                        }`}>Mineral RO™</span>
-                      </div>
+                            <span className={`text-[4.5px] font-extrabold uppercase text-center ${
+                              isBlack ? 'text-white/40' : 'text-slate-500'
+                            }`}>Mineral RO™</span>
+                          </div>
+                        )}
+                      </Link>
                     </div>
 
                     {/* Title & Description */}
                     <div className="text-left space-y-2 flex-grow flex flex-col justify-between">
                       <div>
                         <h4 className="text-sm font-extrabold text-[#091E42] leading-snug line-clamp-2 h-10 group-hover:text-[#0b3178] transition duration-200">
-                          {prod.name}
+                          <Link to={`/products/${prod.id}`} className="hover:underline text-[#091E42] hover:text-[#0b3178]">
+                            {prod.name}
+                          </Link>
                         </h4>
                         <p className="text-[11px] text-slate-500 leading-relaxed mt-2 line-clamp-2">
                           {prod.desc}
@@ -730,16 +691,12 @@ export default function CategoryView({
                       <div className="flex space-x-2.5 mt-2">
                         <button 
                           onClick={() => {
-                            onBuyNow({
-                              id: prod.id,
-                              name: prod.name,
-                              price: prod.price,
-                              color: prod.color ? prod.color[0] : 'White'
-                            });
+                            setSelectedEnquiryProduct(prod);
+                            setIsEnquiryModalOpen(true);
                           }}
                           className="flex-1 bg-[#1a3673] hover:bg-[#0f2552] text-white text-xs font-bold py-3 px-4 rounded-full shadow-md transition duration-200 cursor-pointer"
                         >
-                          Buy Now
+                          Go for Enquiry
                         </button>
                         
                         <button 
@@ -764,9 +721,139 @@ export default function CategoryView({
             </div>
           )}
         </div>
-
       </div>
 
+      {/* Enquiry Modal */}
+      {isEnquiryModalOpen && selectedEnquiryProduct && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-[450px] w-full border border-slate-100 shadow-2xl relative flex flex-col text-left">
+            <button
+              onClick={() => {
+                setIsEnquiryModalOpen(false);
+                setSelectedEnquiryProduct(null);
+                setEnquirySuccess(false);
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 font-extrabold text-sm cursor-pointer"
+            >
+              ✕
+            </button>
+
+            {!enquirySuccess ? (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const newEnquiry = {
+                  id: Date.now().toString(),
+                  name: enquiryName,
+                  phone: enquiryPhone,
+                  address: enquiryAddress,
+                  productName: selectedEnquiryProduct.name,
+                  productId: selectedEnquiryProduct.id,
+                  productPrice: selectedEnquiryProduct.price,
+                  submittedAt: new Date().toLocaleString()
+                };
+                try {
+                  const existing = JSON.parse(localStorage.getItem('kentro-enquiries') || '[]');
+                  localStorage.setItem('kentro-enquiries', JSON.stringify([...existing, newEnquiry]));
+                } catch (err) {
+                  console.error(err);
+                }
+                setEnquirySuccess(true);
+              }} className="space-y-4">
+                <h3 className="text-lg font-black text-[#091E42] tracking-tight">Product Enquiry</h3>
+                <p className="text-xs text-slate-500 font-semibold mb-2">
+                  Submit your details below and a KENT product specialist will get in touch with you shortly.
+                </p>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center space-x-3 mb-2">
+                  <div className="w-10 h-10 bg-white border border-slate-200/60 rounded-lg p-1 flex items-center justify-center">
+                    <img src={selectedEnquiryProduct.image || '/kent-sapphire-iot.png'} alt="Product Thumbnail" className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-slate-800 line-clamp-1">{selectedEnquiryProduct.name}</h4>
+                    <span className="text-[10px] text-[#0b3178] font-black">₹ {selectedEnquiryProduct.price.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter your name"
+                    value={enquiryName}
+                    onChange={(e) => setEnquiryName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Mobile Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    pattern="[0-9]{10}"
+                    placeholder="10-digit mobile number"
+                    value={enquiryPhone}
+                    onChange={(e) => setEnquiryPhone(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Address *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter delivery / installation address"
+                    value={enquiryAddress}
+                    onChange={(e) => setEnquiryAddress(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Product Info</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${selectedEnquiryProduct.name} - ₹ ${selectedEnquiryProduct.price.toLocaleString('en-IN')}`}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-500 focus:outline-none cursor-not-allowed"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#0b3178] hover:bg-[#072457] text-white py-3 rounded-xl font-bold text-[13px] shadow-md transition duration-200 cursor-pointer mt-2"
+                >
+                  Submit Enquiry Request
+                </button>
+              </form>
+            ) : (
+              <div className="text-center py-6 space-y-4 animate-in zoom-in-95 duration-200 select-none">
+                <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-100">
+                  <CheckCircle size={28} />
+                </div>
+                <h3 className="text-lg font-black text-[#091E42]">Enquiry Submitted!</h3>
+                <p className="text-xs text-slate-500 font-semibold leading-relaxed px-4">
+                  Thank you, <strong>{enquiryName}</strong>. Your enquiry for {selectedEnquiryProduct.name} has been logged. A KENT representative will contact you on <strong>{enquiryPhone}</strong> shortly.
+                </p>
+                <button
+                  onClick={() => {
+                    setIsEnquiryModalOpen(false);
+                    setSelectedEnquiryProduct(null);
+                    setEnquirySuccess(false);
+                    setEnquiryName('');
+                    setEnquiryPhone('');
+                    setEnquiryAddress('');
+                  }}
+                  className="bg-[#0b3178] hover:bg-[#072457] text-white text-xs font-bold px-6 py-2.5 rounded-xl transition duration-150 cursor-pointer"
+                >
+                  Close Window
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

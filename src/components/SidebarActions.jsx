@@ -73,17 +73,24 @@ export default function SidebarActions({ onDemoOpen }) {
   return (
     <>
       {/* Floating Sidebar Sticky Buttons */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 flex flex-col space-y-2.5 items-end pr-0 select-none">
+      <div className="fixed right-0 bottom-36 z-40 flex flex-col space-y-4 items-end pr-0 select-none">
         
         {/* Book Demo Trigger */}
         <button 
           onClick={onDemoOpen}
-          className="bg-brand-orange hover:bg-brand-dark-orange text-white flex items-center space-x-2 pl-4 pr-3 py-3 rounded-l-full shadow-lg transform hover:-translate-x-1.5 transition-all duration-300 group cursor-pointer"
+          className="bg-[#1a3673] hover:bg-[#152c5e] text-white flex items-center justify-center py-6 px-3.5 shadow-xl border-l border-y border-white/15 transition-all duration-300 cursor-pointer select-none h-36"
+          style={{ 
+            borderTopLeftRadius: '0px', 
+            borderBottomLeftRadius: '0px', 
+            borderTopRightRadius: '16px', 
+            borderBottomRightRadius: '16px', 
+            writingMode: 'vertical-rl', 
+            transform: 'rotate(180deg)' 
+          }}
         >
-          <span className="text-xs font-bold tracking-wide uppercase hidden group-hover:inline transition-all duration-300">
-            Book Free Demo
+          <span className="text-[13px] font-extrabold tracking-wider uppercase">
+            Book a Demo
           </span>
-          <Calendar size={18} className="animate-pulse-slow" />
         </button>
 
         {/* WhatsApp Call Trigger */}
@@ -91,24 +98,13 @@ export default function SidebarActions({ onDemoOpen }) {
           href="https://wa.me/919278912345" 
           target="_blank" 
           rel="noopener noreferrer"
-          className="bg-[#25D366] hover:bg-[#20ba5a] text-white flex items-center space-x-2 pl-4 pr-3 py-3 rounded-l-full shadow-lg transform hover:-translate-x-1.5 transition-all duration-300 group cursor-pointer"
+          className="bg-[#25D366] hover:bg-[#20ba5a] text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-105 transition-all duration-300 mr-1.5 cursor-pointer"
+          aria-label="WhatsApp Support"
         >
-          <span className="text-xs font-bold tracking-wide uppercase hidden group-hover:inline transition-all duration-300">
-            WhatsApp Care
-          </span>
-          <PhoneCall size={18} />
+          <svg className="w-6 h-6 fill-current text-white" viewBox="0 0 24 24">
+            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.45L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.863-9.73.001-2.597-1.012-5.037-2.855-6.882-1.843-1.844-4.293-2.861-6.89-2.862-5.437 0-9.863 4.37-9.866 9.73-.001 1.803.508 3.562 1.47 5.09L2.148 21.84l4.5-.986zM17.15 14.5c-.282-.142-1.67-.824-1.928-.918-.258-.095-.447-.142-.635.142-.188.282-.728.918-.893 1.106-.164.188-.329.212-.611.07-2.802-1.401-4.63-2.8-5.385-4.103-.198-.342-.02-.528.15-.697.153-.153.33-.386.494-.58.164-.194.218-.329.329-.55.111-.218.056-.411-.027-.552-.083-.142-.728-1.758-.997-2.408-.262-.63-.53-.545-.728-.555l-.624-.012c-.218 0-.573.082-.873.411-.3.33-1.147 1.12-1.147 2.73s1.173 3.16 1.338 3.385c.164.225 2.308 3.525 5.59 4.945.78.337 1.39.54 1.867.692.784.248 1.498.213 2.062.129.629-.094 1.67-.682 1.905-1.34.235-.658.235-1.222.164-1.34-.07-.118-.282-.206-.564-.348z"/>
+          </svg>
         </a>
-
-        {/* Live Chat Trigger */}
-        <button 
-          onClick={() => setIsChatOpen(!isChatOpen)}
-          className="bg-brand-blue hover:bg-brand-dark-blue text-white flex items-center space-x-2 pl-4 pr-3 py-3 rounded-l-full shadow-lg transform hover:-translate-x-1.5 transition-all duration-300 group cursor-pointer"
-        >
-          <span className="text-xs font-bold tracking-wide uppercase hidden group-hover:inline transition-all duration-300">
-            Live Chat
-          </span>
-          <MessageSquare size={18} />
-        </button>
 
       </div>
 

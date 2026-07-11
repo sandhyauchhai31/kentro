@@ -8,12 +8,47 @@ export default function Header({
   onDemoOpen,
   onSearchOpen,
   onProfileOpen,
-  onSubCategoryClick
+  onSubCategoryClick,
+  currentUser
 }) {
   const [isSticky, setIsSticky] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
   const headerRef = useRef(null);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [isUserPopoverOpen, setIsUserPopoverOpen] = useState(false);
+  const [currentLang, setCurrentLang] = useState(() => localStorage.getItem('kentro-lang-name') || 'English');
+
+  const languages = [
+    { name: 'English', code: 'en' },
+    { name: 'हिंदी', code: 'hi' },
+    { name: 'বাংলা', code: 'bn' },
+    
+    { name: 'नेपाली', code: 'ne' },
+    { name: 'मराठी', code: 'mr' },
+    { name: 'ਪੰਜਾਬੀ', code: 'pa' },
+    { name: 'தமிழ்', code: 'ta' },
+    { name: 'ಕನ್ನಡ', code: 'kn' },
+    { name: 'తెలుగు', code: 'te' },
+    { name: 'اردو', code: 'ur' },
+    { name: 'Español', code: 'es' },
+    { name: 'Français', code: 'fr' }
+  ];
+
+  const handleLanguageChange = (lang) => {
+    localStorage.setItem('kentro-lang-name', lang.name);
+    setCurrentLang(lang.name);
+    setLangDropdownOpen(false);
+
+    if (lang.code === 'en') {
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=localhost; path=/;";
+    } else {
+      document.cookie = `googtrans=/en/${lang.code}; path=/;`;
+      document.cookie = `googtrans=/en/${lang.code}; domain=localhost; path=/;`;
+    }
+    window.location.reload();
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -32,6 +67,8 @@ export default function Header({
     const handleClickOutside = (event) => {
       if (headerRef.current && !headerRef.current.contains(event.target)) {
         setActiveMenu(null);
+        setLangDropdownOpen(false);
+        setIsUserPopoverOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -318,17 +355,41 @@ export default function Header({
         <div className="hidden lg:flex flex-col items-end space-y-2.5">
 
           {/* Row 1: Top Utility Links */}
-          <div className="flex items-center space-x-3 xl:space-x-5 text-[10.5px] xl:text-xs text-slate-650 font-medium">
-            <Link to="/about" className="hover:text-[#0b3178] transition whitespace-nowrap">About Us</Link>
-            <Link to="/partner" className="hover:text-[#0b3178] transition whitespace-nowrap">Become a Trade Partner</Link>
+          <div className="flex items-center space-x-3 xl:space-x-5 text-xs xl:text-[13.5px] text-slate-700 font-semibold">
+            <Link to="/about-us" className="hover:text-[#0b3178] transition whitespace-nowrap">About Us</Link>
+            <Link to="/become-trade-partner" className="hover:text-[#0b3178] transition whitespace-nowrap">Become a Trade Partner</Link>
             <Link to="/service" className="hover:text-[#0b3178] transition whitespace-nowrap">Customer Service</Link>
 
-            <Link to="/dealer" className="hover:text-[#0b3178] transition whitespace-nowrap">Dealer Locator</Link>
-            <button className="flex items-center space-x-1 hover:text-[#0b3178] transition focus:outline-none whitespace-nowrap">
-              <span>English</span>
-              <ChevronDown size={12} className="text-slate-400" />
-            </button>
-          </div>
+            <Link to="/dealer-locator" className="hover:text-[#0b3178] transition whitespace-nowrap">Dealer Locator</Link>
+             
+             <div className="relative">
+               <button 
+                 onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+                 className="flex items-center space-x-1 hover:text-[#0b3178] transition focus:outline-none whitespace-nowrap cursor-pointer"
+               >
+                 <span>{currentLang}</span>
+                 <ChevronDown size={12} className={`text-slate-400 transform transition duration-200 ${langDropdownOpen ? 'rotate-180' : ''}`} />
+               </button>
+
+               {langDropdownOpen && (
+                 <div className="absolute right-0 mt-2.5 w-40 bg-white border border-slate-100 rounded-xl shadow-lg py-2 z-[120] text-left">
+                   <div className="max-h-[300px] overflow-y-auto">
+                     {languages.map((lang) => (
+                       <button
+                         key={lang.code}
+                         onClick={() => handleLanguageChange(lang)}
+                         className={`w-full text-left px-4 py-2 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer ${
+                           currentLang === lang.name ? 'text-[#1a3673] bg-blue-50/40' : 'text-slate-700'
+                         }`}
+                       >
+                         {lang.name}
+                       </button>
+                     ))}
+                   </div>
+                 </div>
+               )}
+             </div>
+           </div>
 
           {/* Row 2: Main Header Action Controls */}
           <div className="flex items-center space-x-5">
@@ -342,13 +403,44 @@ export default function Header({
             </button>
 
             {/* User account */}
-            <button
-              onClick={onProfileOpen}
-              className="text-slate-700 hover:text-[#0b3178] p-1 focus:outline-none"
-              aria-label="User Account"
-            >
-              <User size={18} className="text-slate-600" />
-            </button>
+            {currentUser ? (
+              <Link
+                to="/account"
+                className="text-slate-700 hover:text-[#0b3178] p-1 focus:outline-none"
+                aria-label="User Account"
+              >
+                <User size={18} className="text-slate-600" />
+              </Link>
+            ) : (
+              <div className="relative">
+                <button
+                  onClick={() => setIsUserPopoverOpen(!isUserPopoverOpen)}
+                  className="text-slate-700 hover:text-[#0b3178] p-1 focus:outline-none cursor-pointer"
+                  aria-label="User Account"
+                >
+                  <User size={18} className="text-slate-600" />
+                </button>
+                {isUserPopoverOpen && (
+                  <div className="absolute right-[-10px] mt-3.5 w-60 bg-white border border-slate-100 rounded-2xl shadow-xl p-6 z-50 flex flex-col items-center animate-in fade-in slide-in-from-top-1.5 duration-200">
+                    <Link
+                      to="/login"
+                      onClick={() => setIsUserPopoverOpen(false)}
+                      className="w-full bg-[#0b3178] hover:bg-[#072457] text-white text-center font-bold text-[15px] py-3 px-8 rounded-full shadow-md transition duration-200 whitespace-nowrap block"
+                    >
+                      Log in
+                    </Link>
+                    <Link
+                      to="/login"
+                      onClick={() => setIsUserPopoverOpen(false)}
+                      className="mt-4 text-[#0b3178] hover:underline font-extrabold text-[15px] flex items-center justify-center gap-1 transition"
+                    >
+                      <span>Create Account</span>
+                      <span className="text-sm">↗</span>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Separator */}
             <span className="text-slate-200 select-none">|</span>
@@ -461,12 +553,31 @@ export default function Header({
             </div>
 
             <div className="pt-4 border-t border-slate-100 space-y-3">
+              {currentUser ? (
+                <Link
+                  to="/account"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full bg-[#0b3178] hover:bg-[#072457] text-white py-3 rounded-xl font-bold shadow-md transition flex items-center justify-center space-x-2"
+                >
+                  <User size={16} />
+                  <span>My Account</span>
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="w-full bg-[#0b3178] hover:bg-[#072457] text-white py-3 rounded-xl font-bold shadow-md transition flex items-center justify-center space-x-2"
+                >
+                  <User size={16} />
+                  <span>Sign In</span>
+                </Link>
+              )}
               <button
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   onDemoOpen();
                 }}
-                className="w-full bg-[#FF5A00] hover:bg-[#d44b00] text-white py-3 rounded-xl font-bold shadow-md transition"
+                className="w-full bg-[#FF5A00] hover:bg-[#d44b00] text-white py-3 rounded-xl font-bold shadow-md transition cursor-pointer"
               >
                 Book Free Demo
               </button>

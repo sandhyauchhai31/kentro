@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Award, Users, Wrench, Search, X, CheckCircle, HelpCircle, ArrowRight, UserCheck } from 'lucide-react';
+import { ShieldCheck, Award, Users, Wrench, Search, X, CheckCircle, HelpCircle, ArrowRight, UserCheck, Play, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HashRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 // Component Imports
 import Header from './components/Header';
@@ -15,6 +15,14 @@ import CartDrawer from './components/CartDrawer';
 import BookDemoModal from './components/BookDemoModal';
 import CategoryView from './components/CategoryView';
 import CheckoutView from './components/CheckoutView';
+import AboutView from './components/AboutView';
+import PartnerView from './components/PartnerView';
+import ServiceView from './components/ServiceView';
+import DealerView from './components/DealerView';
+import LoginView from './components/LoginView';
+import AccountView from './components/AccountView';
+import ProductDetailView from './components/ProductDetailView';
+import AdminView from './components/AdminView';
 
 function App() {
   return (
@@ -32,8 +40,18 @@ function AppContent() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const userStr = localStorage.getItem('kentro-user');
+      return userStr ? JSON.parse(userStr) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [videoCarouselIndex, setVideoCarouselIndex] = useState(0);
+  const [activeVideoId, setActiveVideoId] = useState(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -194,7 +212,45 @@ function AppContent() {
     );
   }
 
+  if (location.pathname === '/login') {
+    return (
+      <LoginView 
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          navigate('/account');
+        }}
+        onBackToHome={handleBackToHome}
+      />
+    );
+  }
+
+  if (location.pathname === '/account') {
+    if (!currentUser) {
+      setTimeout(() => navigate('/login'), 0);
+      return null;
+    }
+    return (
+      <AccountView 
+        currentUser={currentUser}
+        setCurrentUser={setCurrentUser}
+        onBackToHome={handleBackToHome}
+      />
+    );
+  }
+
+  if (location.pathname === '/admin') {
+    return (
+      <AdminView onBackToHome={handleBackToHome} />
+    );
+  }
+
   const isCategoryView = location.pathname.startsWith('/category');
+  const isAboutPage = location.pathname === '/about-us';
+  const isPartnerPage = location.pathname === '/become-trade-partner';
+  const isServicePage = location.pathname === '/service';
+  const isDealerPage = location.pathname === '/dealer-locator';
+  const isProductDetailPage = location.pathname.startsWith('/products/');
+  const productSlug = isProductDetailPage ? location.pathname.split('/products/')[1] : null;
 
   return (
     <div className="min-h-screen bg-white font-sans flex flex-col justify-between overflow-x-hidden antialiased text-[#121212]">
@@ -207,6 +263,7 @@ function AppContent() {
         onSearchOpen={() => setIsSearchOpen(true)}
         onProfileOpen={() => setIsProfileOpen(true)}
         onSubCategoryClick={handleNavigateToCategory}
+        currentUser={currentUser}
       />
 
       {isCategoryView ? (
@@ -219,10 +276,207 @@ function AppContent() {
           onAddToCart={handleAddToCart}
           onBuyNow={handleBuyNow}
         />
+      ) : isAboutPage ? (
+        <AboutView onBackToHome={handleBackToHome} />
+      ) : isPartnerPage ? (
+        <PartnerView />
+      ) : isServicePage ? (
+        <ServiceView />
+      ) : isDealerPage ? (
+        <DealerView />
+      ) : isProductDetailPage ? (
+        <ProductDetailView 
+          productId={productSlug}
+          onAddToCart={handleAddToCart}
+          onBuyNow={handleBuyNow}
+        />
       ) : (
         <>
           {/* 2. Hero Slider component */}
           <HeroSlider />
+
+          {/* Brand Trust Banner Section */}
+          <section className="w-full bg-white py-8 select-none">
+            <div className="max-w-7xl mx-auto px-4 md:px-8">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#091E42] tracking-tight">
+                India's Most Trusted RO Water Purifier
+              </h2>
+              <p className="text-xs md:text-lg text-slate-500 mt-2 font-medium leading-relaxed max-w-5xl">
+                The leaders in water purification brings you India's most advanced RO technology for 100% pure, safe and healthy drinking water
+              </p>
+            </div>
+          </section>
+
+          {/* Brand Banner Image Section */}
+          <section className="max-w-7xl mx-auto px-4 md:px-8 pb-8 select-none">
+            <div className="w-full rounded-2xl md:rounded-3xl overflow-hidden shadow-lg border border-slate-100 hover:shadow-xl transition duration-300">
+              <img 
+                src="/img-1.png" 
+                alt="Kent Pure Water Purifiers Banner" 
+                className="w-full h-auto object-cover"
+                loading="lazy"
+              />
+            </div>
+          </section>
+
+          {/* Brand Videos & Catalogue Section */}
+          <section className="max-w-7xl mx-auto px-4 md:px-8 pb-10 select-none overflow-hidden relative">
+            <div className="w-full overflow-hidden">
+              <motion.div 
+                className="flex space-x-6 cursor-grab active:cursor-grabbing"
+                drag="x"
+                dragConstraints={{ left: -360, right: 0 }}
+                dragElastic={0.15}
+                onDragEnd={(e, info) => {
+                  if (info.offset.x < -60) {
+                    setVideoCarouselIndex(1);
+                  } else if (info.offset.x > 60) {
+                    setVideoCarouselIndex(0);
+                  }
+                }}
+                animate={{ x: -videoCarouselIndex * 260 }}
+                transition={{ type: 'spring', damping: 26, stiffness: 170 }}
+              >
+                
+                {/* 1. PDF Catalogue Card */}
+                <a 
+                  href="https://www.kent.co.in/cdn/shop/files/product-catalouge.pdf?v=1781523354"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-[#1b3d7d] rounded-2xl p-6 h-[170px] w-[300px] flex-shrink-0 flex flex-col justify-between items-start cursor-pointer hover:shadow-lg hover:scale-[1.02] transition duration-300 relative group overflow-hidden border border-[#0d224d]"
+                >
+                  <div className="absolute top-4 right-4 bg-[#FF5A00] text-white text-[10px] font-black px-2.5 py-1 rounded flex items-center space-x-1 uppercase tracking-wider shadow-sm">
+                    <span>PDF</span>
+                  </div>
+                  
+                  <div>
+                    <span className="text-[10px] font-extrabold text-[#008DDF] tracking-widest block bg-white px-2 py-0.5 rounded w-fit mb-2">KENT</span>
+                    <h3 className="text-base font-black text-white leading-tight uppercase">Product Catalogue</h3>
+                  </div>
+                  
+                  <div className="w-9 h-9 bg-white text-[#1b3d7d] rounded-full flex items-center justify-center shadow-md self-end group-hover:scale-110 transition-transform duration-200">
+                    <Download size={16} />
+                  </div>
+                </a>
+
+                {/* 2. YouTube Video 1 */}
+                <div 
+                  onClick={() => setActiveVideoId('hjTyx4c_dB8')}
+                  className="relative rounded-2xl overflow-hidden h-[170px] w-[300px] flex-shrink-0 cursor-pointer shadow-md hover:shadow-lg group border border-slate-100"
+                >
+                  <img 
+                    src="https://img.youtube.com/vi/hjTyx4c_dB8/hqdefault.jpg" 
+                    alt="KENT Sterling IoT Video Thumbnail" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors duration-300 flex items-center justify-center">
+                    <div className="w-16 h-11 bg-black/60 rounded-[14px] flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 group-hover:bg-[#FF0000] transition-all duration-300 ease-out">
+                      <svg className="w-5 h-5 fill-current text-white translate-x-[2px]" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. YouTube Video 2 */}
+                <div 
+                  onClick={() => setActiveVideoId('70hTIQuef-8')}
+                  className="relative rounded-2xl overflow-hidden h-[170px] w-[300px] flex-shrink-0 cursor-pointer shadow-md hover:shadow-lg group border border-slate-100"
+                >
+                  <img 
+                    src="https://img.youtube.com/vi/70hTIQuef-8/hqdefault.jpg" 
+                    alt="KENT RO Video Thumbnail" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors duration-300 flex items-center justify-center">
+                    <div className="w-16 h-11 bg-black/60 rounded-[14px] flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 group-hover:bg-[#FF0000] transition-all duration-300 ease-out">
+                      <svg className="w-5 h-5 fill-current text-white translate-x-[2px]" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. YouTube Video 3 */}
+                <div 
+                  onClick={() => setActiveVideoId('FYkT9mFPGv8')}
+                  className="relative rounded-2xl overflow-hidden h-[170px] w-[300px] flex-shrink-0 cursor-pointer shadow-md hover:shadow-lg group border border-slate-100"
+                >
+                  <img 
+                    src="https://img.youtube.com/vi/FYkT9mFPGv8/hqdefault.jpg" 
+                    alt="KENT RO Video Thumbnail" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors duration-300 flex items-center justify-center">
+                    <div className="w-16 h-11 bg-black/60 rounded-[14px] flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 group-hover:bg-[#FF0000] transition-all duration-300 ease-out">
+                      <svg className="w-5 h-5 fill-current text-white translate-x-[2px]" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. YouTube Video 4 */}
+                <div 
+                  onClick={() => setActiveVideoId('rJ0JhKSmOnU')}
+                  className="relative rounded-2xl overflow-hidden h-[170px] w-[300px] flex-shrink-0 cursor-pointer shadow-md hover:shadow-lg group border border-slate-100"
+                >
+                  <img 
+                    src="https://img.youtube.com/vi/rJ0JhKSmOnU/hqdefault.jpg" 
+                    alt="KENT RO Video Thumbnail" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors duration-300 flex items-center justify-center">
+                    <div className="w-16 h-11 bg-black/60 rounded-[14px] flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 group-hover:bg-[#FF0000] transition-all duration-300 ease-out">
+                      <svg className="w-5 h-5 fill-current text-white translate-x-[2px]" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. YouTube Video 5 */}
+                <div 
+                  onClick={() => setActiveVideoId('GoiV3_ssRMA')}
+                  className="relative rounded-2xl overflow-hidden h-[170px] w-[300px] flex-shrink-0 cursor-pointer shadow-md hover:shadow-lg group border border-slate-100"
+                >
+                  <img 
+                    src="https://img.youtube.com/vi/GoiV3_ssRMA/hqdefault.jpg" 
+                    alt="KENT RO Video Thumbnail" 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/35 transition-colors duration-300 flex items-center justify-center">
+                    <div className="w-16 h-11 bg-black/60 rounded-[14px] flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 group-hover:bg-[#FF0000] transition-all duration-300 ease-out">
+                      <svg className="w-5 h-5 fill-current text-white translate-x-[2px]" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+              </motion.div>
+            </div>
+
+            {/* Carousel Dot Indicators */}
+            <div className="flex justify-center items-center space-x-2 mt-6">
+              <button 
+                onClick={() => setVideoCarouselIndex(0)}
+                className={`transition-all duration-300 focus:outline-none cursor-pointer ${
+                  videoCarouselIndex === 0 ? 'w-5 h-2 bg-[#091E42] rounded-full' : 'w-2 h-2 bg-slate-300'
+                }`}
+                style={{ borderRadius: '9999px' }}
+                aria-label="Slide group 1"
+              />
+              <button 
+                onClick={() => setVideoCarouselIndex(1)}
+                className={`transition-all duration-300 focus:outline-none cursor-pointer ${
+                  videoCarouselIndex === 1 ? 'w-5 h-2 bg-[#091E42] rounded-full' : 'w-2 h-2 bg-slate-300'
+                }`}
+                style={{ borderRadius: '9999px' }}
+                aria-label="Slide group 2"
+              />
+            </div>
+          </section>
 
           {/* 2b. Main Purifier Division Carousel Section (Matches image) */}
           <section className="max-w-7xl mx-auto px-4 md:px-8 py-10 select-none overflow-hidden relative">
@@ -432,205 +686,32 @@ function AppContent() {
 
           </section>
 
-          {/* 2c. Campaign Banner Image Placeholder */}
-          <section className="max-w-7xl mx-auto px-4 md:px-8 pb-10 select-none">
-            <div className="w-full rounded-3xl overflow-hidden shadow-lg border border-slate-200/60 hover:shadow-xl transition duration-300">
+          
+
+          {/* Hard Water Converter Trust Section */}
+          <section className="w-full bg-[#f4f8fc] border-t border-slate-100 py-12 select-none">
+            <div className="max-w-7xl mx-auto px-4 md:px-8">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#091E42] tracking-tight">
+                Converts Hard Water Into Gentle Care
+              </h2>
+              <p className="text-xs md:text-sm text-slate-500 mt-3 font-medium leading-relaxed max-w-5xl">
+                Advanced water softener solutions range for whole house, bathroom and washing machine converts hardwater into soft, skin, hair and appliance-friendly water.
+              </p>
+            </div>
+          </section>
+
+          {/* Water Softener Banner Image Section */}
+          <section className="max-w-7xl mx-auto px-4 md:px-8 pb-12 select-none">
+            <div className="w-full rounded-2xl md:rounded-3xl overflow-hidden shadow-lg border border-slate-100 hover:shadow-xl transition duration-300">
               <img 
-                src="https://placehold.co/1500x500" 
-                alt="Campaign Banner Placeholder" 
+                src="/img-3.png" 
+                alt="Kent Water Softeners Banner" 
                 className="w-full h-auto object-cover"
                 loading="lazy"
               />
             </div>
           </section>
 
-          {/* 3. Why Choose Kent (Trust Stats Grid) */}
-          <section className="bg-slate-50 border-b border-slate-100 py-10">
-            <div className="max-w-7xl mx-auto px-4 md:px-8 grid grid-cols-2 lg:grid-cols-4 gap-6 text-center select-none">
-              <div className="flex flex-col items-center space-y-2 p-4">
-                <Award size={28} className="text-brand-orange" />
-                <h3 className="font-extrabold text-[#091E42] text-sm">26+ Years Legacy</h3>
-                <p className="text-[11px] text-slate-500">Pioneers of Water Purification in India</p>
-              </div>
-              <div className="flex flex-col items-center space-y-2 p-4 border-l border-slate-200">
-                <ShieldCheck size={28} className="text-[#008DDF]" />
-                <h3 className="font-extrabold text-[#091E42] text-sm">Free Installation</h3>
-                <p className="text-[11px] text-slate-500">Service assistance across all pin codes</p>
-              </div>
-              <div className="flex flex-col items-center space-y-2 p-4 border-l border-slate-200">
-                <Users size={28} className="text-emerald-500" />
-                <h3 className="font-extrabold text-[#091E42] text-sm">10M+ Happy Users</h3>
-                <p className="text-[11px] text-slate-500">Trusted by families nationwide</p>
-              </div>
-              <div className="flex flex-col items-center space-y-2 p-4 border-l border-slate-200">
-                <Wrench size={28} className="text-indigo-500" />
-                <h3 className="font-extrabold text-[#091E42] text-sm">Pan-India Support</h3>
-                <p className="text-[11px] text-slate-500">Over 1,500 service centers nationwide</p>
-              </div>
-            </div>
-          </section>
-
-          {/* 4. Product Categories Grid Showcase */}
-          <section className="py-16 md:py-24 bg-white border-b border-slate-100 select-none">
-            <div className="max-w-7xl mx-auto px-4 md:px-8 text-center">
-              <div className="max-w-xl mx-auto mb-16">
-                <span className="text-brand-blue font-bold text-xs uppercase tracking-widest">Our Solutions</span>
-                <h3 className="text-2xl md:text-4xl font-extrabold text-[#091E42] mt-2">Explore the KENT Range</h3>
-                <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-                  Choose from our wide catalog of housewares engineered with smart diagnostic sensors and advanced environmental filtration.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {categoriesData.map((cat) => (
-                  <div 
-                    key={cat.title}
-                    onClick={() => handleNavigateToCategory(cat.title, subCategoriesMap[cat.title]?.[0] || '')}
-                    className="relative rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 group cursor-pointer h-72 border border-slate-100"
-                  >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${cat.bgClass} opacity-90 group-hover:opacity-95 transition-opacity`} />
-                    <div className="absolute inset-0 p-8 flex flex-col justify-between text-left text-white z-10">
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider bg-white/20 px-2.5 py-1 rounded-full">{cat.stats}</span>
-                        <h4 className="text-xl font-black mt-3 leading-snug">{cat.title}</h4>
-                        <p className="text-[10px] text-slate-100 mt-1.5 font-medium">{cat.tagline}</p>
-                      </div>
-                      <div className="flex items-center space-x-2 text-xs font-bold text-white group-hover:translate-x-1.5 transition-transform duration-200">
-                        <span>Explore Range</span>
-                        <ArrowRight size={14} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* 5. Bestsellers grid */}
-          <Bestsellers onAddToCart={handleAddToCart} />
-
-          {/* 6. Smart Diagnostic quiz section */}
-          <ProductQuiz onNavigateToCategory={handleNavigateToCategory} />
-
-          {/* 7. Technical superiority show */}
-          <TechShowcase />
-
-          {/* 8. Verified credentials certified section */}
-          <section className="py-16 md:py-24 bg-slate-50 border-t border-slate-100 select-none">
-            <div className="max-w-7xl mx-auto px-4 md:px-8">
-              <div className="text-center max-w-xl mx-auto mb-12">
-                <span className="text-brand-blue font-bold text-xs uppercase tracking-widest">Validated Quality</span>
-                <h3 className="text-xl md:text-3xl font-extrabold text-[#091E42] mt-2">Certified for Excellence</h3>
-                <p className="text-xs text-slate-500 mt-2">
-                  KENT purifiers are rigorously tested and certified by the world's most prestigious quality evaluation agencies.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 items-center text-center">
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-xs">
-                  <div className="w-12 h-12 bg-blue-50 text-brand-blue rounded-full flex items-center justify-center mx-auto mb-3 font-extrabold text-sm border border-blue-100 shadow-sm">
-                    WQA
-                  </div>
-                  <h4 className="font-extrabold text-[#091E42] text-xs">WQA Gold Seal</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Tested for compliance against NSF/ANSI standards.</p>
-                </div>
-                
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-xs border-l-0 md:border-l border-slate-100">
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 font-extrabold text-sm border border-indigo-100 shadow-sm">
-                    NSF
-                  </div>
-                  <h4 className="font-extrabold text-[#091E42] text-xs">NSF International</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Global standard mark for public health and safety.</p>
-                </div>
-
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-xs border-l-0 md:border-l border-slate-100">
-                  <div className="w-12 h-12 bg-cyan-50 text-cyan-600 rounded-full flex items-center justify-center mx-auto mb-3 font-extrabold text-sm border border-cyan-100 shadow-sm">
-                    CE
-                  </div>
-                  <h4 className="font-extrabold text-[#091E42] text-xs">CE Certification</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Approved for conforming to safety standards in EU.</p>
-                </div>
-
-                <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-xs border-l-0 md:border-l border-slate-100">
-                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 font-extrabold text-sm border border-emerald-100 shadow-sm">
-                    TUV
-                  </div>
-                  <h4 className="font-extrabold text-[#091E42] text-xs">TUV Certified</h4>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Verified production and safety compliance audits.</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 9. Service Reservation Request Form */}
-          <section className="py-16 md:py-24 bg-white border-t border-slate-100 select-none">
-            <div className="max-w-2xl mx-auto px-4 text-center">
-              <div className="mb-10">
-                <span className="text-brand-blue font-bold text-xs uppercase tracking-widest">Support Portal</span>
-                <h3 className="text-xl md:text-3xl font-extrabold text-[#091E42] mt-2">Book Free Installation & Demo</h3>
-                <p className="text-xs text-slate-500 mt-2">
-                  Enter details to receive reservation calls from certified service technicians within 24 hours.
-                </p>
-              </div>
-
-              {serviceSuccess ? (
-                <div className="bg-green-50 text-green-700 p-6 rounded-3xl border border-green-100 space-y-2 flex flex-col items-center">
-                  <UserCheck size={28} className="text-green-500" />
-                  <h4 className="font-extrabold text-sm">Request Submitted Successfully!</h4>
-                  <p className="text-xs">A service representative will call you shortly to confirm dates.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleServiceSubmit} className="space-y-4 text-left">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <input 
-                      type="text" 
-                      required
-                      value={serviceForm.name}
-                      onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
-                      placeholder="Your Name"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-[#0b3178] transition"
-                    />
-                    <input 
-                      type="tel" 
-                      required
-                      value={serviceForm.phone}
-                      onChange={(e) => setServiceForm({ ...serviceForm, phone: e.target.value })}
-                      placeholder="Mobile Phone"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-[#0b3178] transition"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <select 
-                      value={serviceForm.type}
-                      onChange={(e) => setServiceForm({ ...serviceForm, type: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-[#0b3178] cursor-pointer"
-                    >
-                      <option>Installation Request</option>
-                      <option>Free Home Demo</option>
-                      <option>Maintenance Service</option>
-                    </select>
-                    
-                    <input 
-                      type="text" 
-                      value={serviceForm.message}
-                      onChange={(e) => setServiceForm({ ...serviceForm, message: e.target.value })}
-                      placeholder="Additional details (optional)"
-                      className="w-full sm:col-span-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-[#0b3178] transition"
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={serviceLoading}
-                    className="w-full bg-[#0b3178] hover:bg-[#082255] text-white py-3.5 rounded-full font-bold text-xs shadow-md transition cursor-pointer text-center"
-                  >
-                    {serviceLoading ? 'Submitting request...' : 'Schedule Service Booking'}
-                  </button>
-                </form>
-              )}
-            </div>
-          </section>
         </>
       )}
 
@@ -652,6 +733,34 @@ function AppContent() {
         isOpen={isDemoOpen}
         onClose={() => setIsDemoOpen(false)}
       />
+
+      {/* YouTube Video Lightbox Modal */}
+      {activeVideoId && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl bg-black rounded-2xl overflow-hidden shadow-2xl">
+            <button 
+              onClick={() => setActiveVideoId(null)}
+              className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition cursor-pointer z-10"
+            >
+              <X size={20} />
+            </button>
+            <div className="aspect-video w-full">
+              <iframe
+                src={`https://www.youtube.com/embed/${activeVideoId}?autoplay=1`}
+                title="YouTube video player"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="w-full h-full"
+              ></iframe>
+            </div>
+          </div>
+          <div className="absolute inset-0 -z-10" onClick={() => setActiveVideoId(null)}></div>
+        </div>
+      )}
+
+      {/* Floating Sidebar Sticky Action Buttons */}
+      <SidebarActions onDemoOpen={() => setIsDemoOpen(true)} />
 
     </div>
   );
