@@ -53,8 +53,21 @@ export default function CategoryView({
     'New Energy': ['Solar Panels', 'Solar Inverters']
   };
 
-  const catalog = getFullCatalog();
+  const [catalog, setCatalog] = useState(() => getFullCatalog());
   const currentProducts = catalog[activeSubCategory] || [];
+
+  // Update catalog when localStorage changes (e.g. from another tab/window)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'kentro-custom-products') {
+        setCatalog(getFullCatalog());
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // Reset max price boundary and clear filters on subcategory switch
   useEffect(() => {

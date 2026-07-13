@@ -23,6 +23,7 @@ import LoginView from './components/LoginView';
 import AccountView from './components/AccountView';
 import ProductDetailView from './components/ProductDetailView';
 import AdminView from './components/AdminView';
+import EmployeeView from './components/EmployeeView';
 
 function App() {
   return (
@@ -241,6 +242,12 @@ function AppContent() {
   if (location.pathname === '/admin') {
     return (
       <AdminView onBackToHome={handleBackToHome} />
+    );
+  }
+
+  if (location.pathname === '/employee') {
+    return (
+      <EmployeeView onBackToHome={handleBackToHome} />
     );
   }
 

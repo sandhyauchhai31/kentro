@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Footer() {
   return (
@@ -32,6 +33,7 @@ export default function Footer() {
             <li><a href="#become-partner" className="hover:underline">Become a Trade Partner</a></li>
             <li><a href="#intl-products" className="hover:underline">International Products</a></li>
             <li><a href="#blogs" className="hover:underline">Blogs</a></li>
+            <li><Link to="/employee" className="hover:underline text-cyan-400 font-extrabold">Employee Portal</Link></li>
           </ul>
         </div>
 
