@@ -24,6 +24,7 @@ import AccountView from './components/AccountView';
 import ProductDetailView from './components/ProductDetailView';
 import AdminView from './components/AdminView';
 import EmployeeView from './components/EmployeeView';
+import SearchModal from './components/SearchModal';
 
 function App() {
   return (
@@ -739,6 +740,12 @@ function AppContent() {
       <BookDemoModal 
         isOpen={isDemoOpen}
         onClose={() => setIsDemoOpen(false)}
+      />
+
+      {/* Global Search Modal */}
+      <SearchModal 
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
       />
 
       {/* YouTube Video Lightbox Modal */}

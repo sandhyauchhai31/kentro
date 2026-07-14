@@ -215,6 +215,7 @@ export default function ServiceView() {
                 try {
                   const existing = JSON.parse(localStorage.getItem('kentro-service-bookings') || '[]');
                   localStorage.setItem('kentro-service-bookings', JSON.stringify([...existing, newBooking]));
+                  window.dispatchEvent(new Event('kentro-service-bookings-updated'));
                   setBookingId(newId);
                   setBookingSuccess(true);
                   setServiceName('');

@@ -46,14 +46,18 @@ export default function EmployeeView({ onBackToHome }) {
 
   // Sync state from localStorage
   useEffect(() => {
-    try {
-      const storedBookings = localStorage.getItem('kentro-service-bookings');
-      if (storedBookings) {
-        setServiceBookings(JSON.parse(storedBookings));
+    const reloadBookings = () => {
+      try {
+        const storedBookings = localStorage.getItem('kentro-service-bookings');
+        if (storedBookings) {
+          setServiceBookings(JSON.parse(storedBookings));
+        }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    };
+
+    reloadBookings();
 
     const handleStorageChange = (e) => {
       if (e.key === 'kentro-service-bookings') {
@@ -71,7 +75,12 @@ export default function EmployeeView({ onBackToHome }) {
     };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('kentro-service-bookings-updated', reloadBookings);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('kentro-service-bookings-updated', reloadBookings);
+    };
   }, [employeeUser]);
 
   // Login handler
@@ -116,6 +125,7 @@ export default function EmployeeView({ onBackToHome }) {
     );
     setServiceBookings(updatedBookings);
     localStorage.setItem('kentro-service-bookings', JSON.stringify(updatedBookings));
+    window.dispatchEvent(new Event('kentro-service-bookings-updated'));
   };
 
   // Filter tasks assigned to this employee
