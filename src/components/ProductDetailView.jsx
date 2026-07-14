@@ -15,7 +15,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
   const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
   const [enquiryName, setEnquiryName] = useState('');
   const [enquiryPhone, setEnquiryPhone] = useState('');
-  const [enquiryAddress, setEnquiryAddress] = useState('');
+  const [enquiryMessage, setEnquiryMessage] = useState('');
   const [enquirySuccess, setEnquirySuccess] = useState(false);
 
   // Look up product dynamically from catalog
@@ -64,7 +64,68 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
     );
   }
 
-  const discountPercent = Math.round(((product.basePrice - product.price) / product.basePrice) * 100);
+  const [offers] = useState(() => {
+    try {
+      const s = localStorage.getItem('kentro-offers');
+      return s ? JSON.parse(s) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const applicableOffers = offers.filter(off =>
+    off.status === 'Active' &&
+    (off.applicableTo === 'all' || off.applicableTo === product.name)
+  );
+
+  const [selectedOffer, setSelectedOffer] = useState(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState('');
+
+  let finalPrice = product.price;
+  if (selectedOffer) {
+    if (selectedOffer.type === 'Percentage') {
+      finalPrice = Math.max(0, Math.round(product.price * (1 - selectedOffer.value / 100)));
+    } else {
+      finalPrice = Math.max(0, product.price - selectedOffer.value);
+    }
+  }
+
+  const discountPercent = Math.round(((product.basePrice - finalPrice) / product.basePrice) * 100);
+
+  const handleApplyCoupon = () => {
+    if (!couponInput.trim()) {
+      setCouponError('Please enter a coupon code.');
+      return;
+    }
+    const match = applicableOffers.find(
+      off => off.code.trim().toUpperCase() === couponInput.trim().toUpperCase()
+    );
+    if (match) {
+      setSelectedOffer(match);
+      setCouponInput(match.code);
+      setCouponError('');
+    } else {
+      setCouponError('Invalid or expired coupon code.');
+      setSelectedOffer(null);
+    }
+  };
+
+  const handleRemoveOffer = () => {
+    setSelectedOffer(null);
+    setCouponInput('');
+    setCouponError('');
+  };
+
+  const handleSelectOffer = (off) => {
+    if (selectedOffer?.id === off.id) {
+      handleRemoveOffer();
+    } else {
+      setSelectedOffer(off);
+      setCouponInput(off.code);
+      setCouponError('');
+    }
+  };
 
   // Pincode validation helper
   const handleCheckPincode = (e) => {
@@ -92,7 +153,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
       onAddToCart({
         id: product.id,
         name: product.name,
-        price: product.price,
+        price: finalPrice,
         color: product.color
       });
     }
@@ -102,7 +163,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
     onBuyNow({
       id: product.id,
       name: product.name,
-      price: product.price,
+      price: finalPrice,
       color: product.color
     });
   };
@@ -270,14 +331,116 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
           {/* Price Block */}
           <div className="space-y-1">
             <div className="flex items-baseline space-x-3.5">
-              <span className="text-2xl md:text-3.5xl font-black text-[#0b3178]">
-                ₹ {product.price.toLocaleString('en-IN')}.00
+              <span className={`text-2xl md:text-3.5xl font-black ${selectedOffer ? 'text-[#EC008C]' : 'text-[#0b3178]'}`}>
+                ₹ {finalPrice.toLocaleString('en-IN')}.00
               </span>
+              {selectedOffer && (
+                <span className="text-base text-slate-450 line-through">
+                  ₹ {product.price.toLocaleString('en-IN')}.00
+                </span>
+              )}
               <span className="text-base text-slate-400 line-through">
                 MRP ₹ {product.basePrice.toLocaleString('en-IN')}.00
               </span>
             </div>
+            {selectedOffer && (
+              <p className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 animate-in fade-in duration-200">
+                <span>✓ Coupon <strong>{selectedOffer.code}</strong> applied!</span>
+                <span className="text-slate-300">|</span>
+                <span>Extra savings of ₹ {(product.price - finalPrice).toLocaleString('en-IN')}!</span>
+              </p>
+            )}
             <p className="text-xs text-slate-500 font-semibold">(Inclusive of all taxes)</p>
+          </div>
+
+          {/* Interactive Offers & Coupons Block */}
+          <div className="border border-slate-200/80 rounded-2xl p-4 bg-slate-50/50 space-y-3">
+            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider block">Offers & Coupons</span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Enter coupon code"
+                value={couponInput}
+                onChange={(e) => {
+                  setCouponInput(e.target.value);
+                  setCouponError('');
+                }}
+                className="flex-grow px-3.5 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-xs font-semibold uppercase tracking-wider"
+              />
+              {selectedOffer ? (
+                <button
+                  onClick={handleRemoveOffer}
+                  type="button"
+                  className="bg-red-50 hover:bg-red-100 text-red-650 text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer border border-red-100"
+                >
+                  Remove
+                </button>
+              ) : (
+                <button
+                  onClick={handleApplyCoupon}
+                  type="button"
+                  className="bg-[#0b3178] hover:bg-[#072457] text-white text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer"
+                >
+                  Apply
+                </button>
+              )}
+            </div>
+
+            {couponError && (
+              <p className="text-[11px] font-semibold text-red-500 animate-in fade-in duration-150">{couponError}</p>
+            )}
+
+            {selectedOffer && !couponError && (
+              <p className="text-[11px] font-semibold text-emerald-650 flex items-center gap-1 animate-in fade-in duration-150">
+                <span>🎉 Coupon <strong>{selectedOffer.code}</strong> applied successfully!</span>
+              </p>
+            )}
+
+            {applicableOffers.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-200/50">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Available Coupons (Tap to Apply)</span>
+                <div className="space-y-2">
+                  {applicableOffers.map((off) => {
+                    const isApplied = selectedOffer?.id === off.id;
+                    return (
+                      <button
+                        key={off.id}
+                        onClick={() => handleSelectOffer(off)}
+                        type="button"
+                        className={`w-full text-left flex items-start gap-2.5 p-3 rounded-xl border transition cursor-pointer ${
+                          isApplied
+                            ? 'bg-emerald-50/50 border-emerald-500/80 shadow-xs'
+                            : 'bg-white border-slate-200 hover:border-slate-350 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-emerald-500 font-bold shrink-0 text-sm mt-0.5">🏷️</span>
+                        <div className="flex-grow">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded tracking-wider uppercase ${
+                              isApplied ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {off.code}
+                            </span>
+                            <span className="text-[13px] font-black text-slate-800">{off.title}</span>
+                          </div>
+                          {off.description && <p className="text-[11.5px] text-slate-500 font-semibold mt-1 leading-relaxed">{off.description}</p>}
+                          <p className="text-[10px] text-[#1D4ED8] font-black uppercase tracking-wider mt-1">
+                            Save {off.type === 'Percentage' ? `${off.value}%` : `₹${off.value.toLocaleString('en-IN')}`}
+                          </p>
+                        </div>
+                        {isApplied && (
+                          <span className="bg-emerald-500 text-white rounded-full p-0.5 self-center shrink-0">
+                            <svg className="w-3.5 h-3.5 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="3">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Highlights Box */}
@@ -520,7 +683,14 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                   </tr>
                   <tr className="border-b border-slate-50">
                     <td className="px-5 py-3.5 font-bold text-slate-800">Sale Price</td>
-                    <td className="px-5 py-3.5">₹ {product.price.toLocaleString('en-IN')}.00</td>
+                    <td className="px-5 py-3.5">
+                      ₹ {finalPrice.toLocaleString('en-IN')}.00
+                      {selectedOffer && (
+                        <span className="text-emerald-600 text-xs font-bold ml-2">
+                          (Offer {selectedOffer.code} Applied)
+                        </span>
+                      )}
+                    </td>
                   </tr>
                   <tr className="border-b border-slate-50 bg-slate-50/30">
                     <td className="px-5 py-3.5 font-bold text-slate-800">MRP</td>
@@ -643,6 +813,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
               onClick={() => {
                 setIsEnquiryModalOpen(false);
                 setEnquirySuccess(false);
+                setEnquiryMessage('');
               }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 font-extrabold text-sm cursor-pointer"
             >
@@ -656,10 +827,10 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                   id: Date.now().toString(),
                   name: enquiryName,
                   phone: enquiryPhone,
-                  address: enquiryAddress,
+                  message: enquiryMessage,
                   productName: product.name,
                   productId: product.id,
-                  productPrice: product.price,
+                  productPrice: finalPrice,
                   submittedAt: new Date().toLocaleString()
                 };
                 try {
@@ -680,7 +851,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                   </div>
                   <div>
                     <h4 className="text-xs font-extrabold text-slate-800 line-clamp-1">{product.name}</h4>
-                    <span className="text-[10px] text-[#0b3178] font-black">₹ {product.price.toLocaleString('en-IN')}</span>
+                    <span className="text-[10px] text-[#0b3178] font-black">₹ {finalPrice.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
@@ -710,14 +881,12 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Address *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter delivery / installation address"
-                    value={enquiryAddress}
-                    onChange={(e) => setEnquiryAddress(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Message / Requirements</label>
+                  <textarea
+                    placeholder="Enter any specific requirements or message..."
+                    value={enquiryMessage}
+                    onChange={(e) => setEnquiryMessage(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold min-h-[80px] resize-y"
                   />
                 </div>
 
@@ -726,7 +895,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                   <input
                     type="text"
                     readOnly
-                    value={`${product.name} - ₹ ${product.price.toLocaleString('en-IN')}`}
+                    value={`${product.name} - ₹ ${finalPrice.toLocaleString('en-IN')}`}
                     className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] font-bold text-slate-500 focus:outline-none cursor-not-allowed"
                   />
                 </div>
@@ -753,7 +922,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                     setEnquirySuccess(false);
                     setEnquiryName('');
                     setEnquiryPhone('');
-                    setEnquiryAddress('');
+                    setEnquiryMessage('');
                   }}
                   className="bg-[#0b3178] hover:bg-[#072457] text-white text-xs font-bold px-6 py-2.5 rounded-xl transition duration-150 cursor-pointer"
                 >

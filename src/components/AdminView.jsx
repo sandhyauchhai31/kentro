@@ -40,6 +40,7 @@ import {
   RefreshCw,
   Key,
   Pencil,
+  Star,
 } from 'lucide-react';
 import { getFullCatalog } from '../catalogData';
 
@@ -206,6 +207,20 @@ export default function AdminView({ onBackToHome }) {
   const [serviceBookings, setServiceBookings] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [demoBookings, setDemoBookings] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('Water Purifiers');
+  const [demoStatusFilter, setDemoStatusFilter] = useState('all');
+  const [enquiryStatusFilter, setEnquiryStatusFilter] = useState('all');
+  const [toast, setToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
+  const showToast = (message, type = 'success') => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
 
   // ── Employee form ─────────────────────────────────────────────────────────
   const [empName, setEmpName] = useState('');
@@ -220,7 +235,21 @@ export default function AdminView({ onBackToHome }) {
   const [isAddEmployeeModalOpen, setIsAddEmployeeModalOpen] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
 
+  // ── Offer form ────────────────────────────────────────────────────────────
+  const [offers, setOffers] = useState([]);
+  const [offerCode, setOfferCode] = useState('');
+  const [offerTitle, setOfferTitle] = useState('');
+  const [offerDescription, setOfferDescription] = useState('');
+  const [offerType, setOfferType] = useState('Percentage');
+  const [offerValue, setOfferValue] = useState('');
+  const [offerApplicableTo, setOfferApplicableTo] = useState('all');
+  const [offerStatus, setOfferStatus] = useState('Active');
+  const [isAddOfferModalOpen, setIsAddOfferModalOpen] = useState(false);
+  const [editingOfferId, setEditingOfferId] = useState(null);
+  const [offerSuccess, setOfferSuccess] = useState(false);
+
   const [allProductsList, setAllProductsList] = useState([]);
+  const [editingProductId, setEditingProductId] = useState(null);
 
   // ── Load catalog list ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -271,6 +300,8 @@ export default function AdminView({ onBackToHome }) {
         localStorage.setItem('kentro-employees', JSON.stringify(seed));
         setEmployees(seed);
       }
+      const sOffers = localStorage.getItem('kentro-offers');
+      if (sOffers) setOffers(JSON.parse(sOffers));
     } catch (e) { console.error('Error loading data:', e); }
 
     const onChange = (e) => {
@@ -280,6 +311,7 @@ export default function AdminView({ onBackToHome }) {
         else if (e.key === 'kentro-service-bookings')  setServiceBookings(e.newValue ? JSON.parse(e.newValue) : []);
         else if (e.key === 'kentro-employees')         setEmployees(e.newValue ? JSON.parse(e.newValue) : []);
         else if (e.key === 'kentro-demo-bookings')     setDemoBookings(e.newValue ? JSON.parse(e.newValue) : []);
+        else if (e.key === 'kentro-offers')            setOffers(e.newValue ? JSON.parse(e.newValue) : []);
       } catch (err) { console.error(err); }
     };
 
@@ -323,9 +355,10 @@ export default function AdminView({ onBackToHome }) {
   const handleAddProductSubmit = (e) => {
     e.preventDefault();
     if (!prodId.trim() || !prodName.trim() || !price || !basePrice) {
-      alert('Please fill all required fields.');
+      showToast('Please fill all required fields.', 'warning');
       return;
     }
+
     const newProd = {
       id: prodId.trim().toLowerCase().replace(/\s+/g, '-'),
       name: prodName.trim(), price: parseFloat(price), basePrice: parseFloat(basePrice),
@@ -337,20 +370,74 @@ export default function AdminView({ onBackToHome }) {
       category, subCategory, image: imagePreview || imageUrl.trim() || null,
       warranty: warranty.trim() || null, guarantee: guarantee.trim() || null,
     };
-    const updated = [...customProducts, newProd];
-    try {
-      localStorage.setItem('kentro-custom-products', JSON.stringify(updated));
-      setCustomProducts(updated);
-      setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
-      setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
-      setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setFormSuccess(true);
-      setTimeout(() => setFormSuccess(false), 3500);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save — uploaded image may be too large. Try a URL instead.');
+
+    if (editingProductId) {
+      const exists = customProducts.some((p) => p.id === editingProductId);
+      const updated = exists
+        ? customProducts.map((p) => (p.id === editingProductId ? newProd : p))
+        : [...customProducts, newProd];
+      try {
+        localStorage.setItem('kentro-custom-products', JSON.stringify(updated));
+        setCustomProducts(updated);
+        setEditingProductId(null);
+        setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
+        setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
+        setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        showToast('Product updated successfully!');
+        setActiveTab('manage');
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to update product — image may be too large.', 'error');
+      }
+    } else {
+      const updated = [...customProducts, newProd];
+      try {
+        localStorage.setItem('kentro-custom-products', JSON.stringify(updated));
+        setCustomProducts(updated);
+        setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
+        setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
+        setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setFormSuccess(true);
+        setTimeout(() => setFormSuccess(false), 3500);
+      } catch (err) {
+        console.error(err);
+        showToast('Failed to save — image may be too large.', 'error');
+      }
     }
+  };
+
+  const handleStartEditProduct = (p) => {
+    setEditingProductId(p.id);
+    setProdId(p.id);
+    setProdName(p.name);
+    setPrice(p.price.toString());
+    setBasePrice(p.basePrice.toString());
+    setSpecs(p.specs || '');
+    setInstallType(p.installType || 'Wall Mounted');
+    setDesc(p.desc || '');
+    setFeatures(p.features ? p.features.join(', ') : '');
+    setColors(p.color ? p.color.join(', ') : 'White');
+    setTech(p.tech || '');
+    setRoFeatures(p.roFeatures ? p.roFeatures.join(', ') : '');
+    setCategory(p.category || 'Water Purifiers');
+    setSubCategory(p.subCategory || '');
+    setImageUrl(p.image && p.image.startsWith('http') ? p.image : '');
+    setImagePreview(p.image || null);
+    setImageMode(p.image && p.image.startsWith('http') ? 'url' : 'upload');
+    setWarranty(p.warranty || '');
+    setGuarantee(p.guarantee || '');
+    setActiveTab('add');
+  };
+
+  const handleCancelEditProduct = () => {
+    setEditingProductId(null);
+    setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
+    setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
+    setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setActiveTab('manage');
   };
 
   const handleDeleteProduct = (id) => {
@@ -477,6 +564,102 @@ export default function AdminView({ onBackToHome }) {
     setEmpSpecialization(emp.specialization || 'General');
     setEmpStatus(emp.status || 'Active');
     setIsAddEmployeeModalOpen(true);
+  };
+
+  // ── Offer Handlers ────────────────────────────────────────────────────────
+  const handleAddOffer = (e) => {
+    e.preventDefault();
+    if (!offerCode.trim() || !offerTitle.trim() || !offerValue) {
+      alert('Code, Title and Value are required.');
+      return;
+    }
+
+    if (editingOfferId) {
+      // Update Mode
+      const updated = offers.map(off => {
+        if (off.id === editingOfferId) {
+          return {
+            ...off,
+            code: offerCode.trim().toUpperCase(),
+            title: offerTitle.trim(),
+            description: offerDescription.trim(),
+            type: offerType,
+            value: Number(offerValue),
+            applicableTo: offerApplicableTo,
+            status: offerStatus,
+          };
+        }
+        return off;
+      });
+      setOffers(updated);
+      localStorage.setItem('kentro-offers', JSON.stringify(updated));
+      window.dispatchEvent(new Event('storage'));
+      setEditingOfferId(null);
+    } else {
+      // Create Mode
+      if (offers.some((off) => off.code.toLowerCase() === offerCode.trim().toLowerCase())) {
+        alert('An offer with this code already exists.');
+        return;
+      }
+      const newOffer = {
+        id: 'OFF-' + Math.floor(100 + Math.random() * 900),
+        code: offerCode.trim().toUpperCase(),
+        title: offerTitle.trim(),
+        description: offerDescription.trim(),
+        type: offerType,
+        value: Number(offerValue),
+        applicableTo: offerApplicableTo,
+        status: offerStatus,
+      };
+      const u = [...offers, newOffer];
+      setOffers(u);
+      localStorage.setItem('kentro-offers', JSON.stringify(u));
+      window.dispatchEvent(new Event('storage'));
+    }
+
+    // Reset Form
+    setOfferCode('');
+    setOfferTitle('');
+    setOfferDescription('');
+    setOfferType('Percentage');
+    setOfferValue('');
+    setOfferApplicableTo('all');
+    setOfferStatus('Active');
+    setOfferSuccess(true);
+    setIsAddOfferModalOpen(false);
+    setTimeout(() => setOfferSuccess(false), 3500);
+  };
+
+  const handleDeleteOffer = (id) => {
+    const u = offers.filter((off) => off.id !== id);
+    setOffers(u);
+    localStorage.setItem('kentro-offers', JSON.stringify(u));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleToggleOfferStatus = (id) => {
+    const updated = offers.map(off => {
+      if (off.id === id) {
+        const nextStatus = off.status === 'Active' ? 'Inactive' : 'Active';
+        return { ...off, status: nextStatus };
+      }
+      return off;
+    });
+    setOffers(updated);
+    localStorage.setItem('kentro-offers', JSON.stringify(updated));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  const handleStartEditOffer = (off) => {
+    setEditingOfferId(off.id);
+    setOfferCode(off.code);
+    setOfferTitle(off.title);
+    setOfferDescription(off.description || '');
+    setOfferType(off.type);
+    setOfferValue(off.value);
+    setOfferApplicableTo(off.applicableTo);
+    setOfferStatus(off.status);
+    setIsAddOfferModalOpen(true);
   };
 
   const handleLogout = () => {
@@ -609,6 +792,7 @@ export default function AdminView({ onBackToHome }) {
     { id: 'overview',   label: 'Dashboard',         icon: LayoutDashboard },
     { id: 'add',        label: 'Add Product',        icon: PlusCircle },
     { id: 'manage',     label: 'Products',           icon: Package,        badge: totalProductsCount },
+    { id: 'offers',     label: 'Offers',             icon: Tag,            badge: offers.length },
     { id: 'demo',       label: 'Demo Bookings',      icon: ClipboardList,  badge: demoBookings.length },
     { id: 'enquiries',  label: 'Product Enquiries',  icon: Mail,           badge: enquiries.length },
     { id: 'services',   label: 'Service Requests',   icon: Wrench,         badge: serviceBookings.length },
@@ -833,7 +1017,10 @@ export default function AdminView({ onBackToHome }) {
           {/* ── Add Product ────────────────────────────────────────────────── */}
           {activeTab === 'add' && (
             <div className="max-w-4xl">
-              <SectionHeader title="Add New Product" subtitle="Publish a new product into the live storefront catalog." />
+              <SectionHeader 
+                title={editingProductId ? "Edit Product" : "Add New Product"} 
+                subtitle={editingProductId ? `Modify details for product: ${prodName}` : "Publish a new product into the live storefront catalog."} 
+              />
 
               {formSuccess && (
                 <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[13px] font-extrabold px-5 py-4 rounded-2xl mb-6 shadow-sm">
@@ -965,7 +1152,7 @@ export default function AdminView({ onBackToHome }) {
                           e.preventDefault(); e.stopPropagation();
                           const file = e.dataTransfer.files?.[0];
                           if (file) {
-                            if (file.size > 1.5 * 1024 * 1024) { alert('Max 1.5MB'); return; }
+                            if (file.size > 5 * 1024 * 1024) { showToast('Image size cannot exceed 5MB.', 'error'); return; }
                             if (file.type.startsWith('image/')) {
                               const r = new FileReader();
                               r.onload = (ev) => setImagePreview(ev.target.result);
@@ -976,7 +1163,7 @@ export default function AdminView({ onBackToHome }) {
                         className="w-full border-2 border-dashed border-slate-200 hover:border-[#1D4ED8]/40 rounded-2xl py-10 flex flex-col items-center justify-center text-center cursor-pointer transition bg-slate-50/50 hover:bg-blue-50/20">
                         <Upload size={24} className="text-slate-300 mb-2" />
                         <p className="text-[13px] font-extrabold text-slate-500">Click or drop image here</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5 uppercase font-bold tracking-wide">PNG, JPG, WEBP · Max 1.5MB</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 uppercase font-bold tracking-wide">PNG, JPG, WEBP · Max 5MB</p>
                       </div>
                     )}
 
@@ -984,7 +1171,7 @@ export default function AdminView({ onBackToHome }) {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          if (file.size > 1.5 * 1024 * 1024) { alert('Max 1.5MB'); if (fileInputRef.current) fileInputRef.current.value = ''; return; }
+                          if (file.size > 5 * 1024 * 1024) { showToast('Image size cannot exceed 5MB.', 'error'); if (fileInputRef.current) fileInputRef.current.value = ''; return; }
                           if (file.type.startsWith('image/')) {
                             const r = new FileReader();
                             r.onload = (ev) => setImagePreview(ev.target.result);
@@ -1007,10 +1194,18 @@ export default function AdminView({ onBackToHome }) {
                     )}
                   </div>
 
-                  <button type="submit"
-                    className="bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] text-white font-extrabold text-[13px] tracking-wide px-8 py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer mt-2">
-                    Publish to Catalog
-                  </button>
+                  <div className="flex gap-3">
+                    <button type="submit"
+                      className="bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] text-white font-extrabold text-[13px] tracking-wide px-8 py-3.5 rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer mt-2">
+                      {editingProductId ? 'Update Product' : 'Publish to Catalog'}
+                    </button>
+                    {editingProductId && (
+                      <button type="button" onClick={handleCancelEditProduct}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-[13px] tracking-wide px-8 py-3.5 rounded-xl border border-slate-250 transition-all cursor-pointer mt-2">
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
                 </form>
               </div>
             </div>
@@ -1019,30 +1214,203 @@ export default function AdminView({ onBackToHome }) {
           {/* ── Manage Products ────────────────────────────────────────────── */}
           {activeTab === 'manage' && (
             <div>
-              <SectionHeader title="Custom Products" subtitle="All custom-added products published to the storefront." />
-              {customProducts.length > 0 ? (
-                <DataTable headers={['Product Name', 'Subcategory', 'Install Type', 'Price', 'Action']}>
-                  {customProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/60 transition">
-                      <td className="px-5 py-4 font-extrabold text-slate-800">{p.name}</td>
-                      <td className="px-5 py-4">
-                        <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 px-2.5 py-1 rounded-lg text-[10px] font-black">{p.subCategory}</span>
-                      </td>
-                      <td className="px-5 py-4 text-slate-500 font-semibold">{p.installType}</td>
-                      <td className="px-5 py-4 font-black text-slate-800">₹{p.price.toLocaleString('en-IN')}</td>
-                      <td className="px-5 py-4 text-center">
-                        <button onClick={() => handleDeleteProduct(p.id)} className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer" title="Delete">
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </DataTable>
-              ) : (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-                  <EmptyState icon={Package} message="No custom products added yet." action="Add your first product" onAction={() => setActiveTab('add')} />
-                </div>
-              )}
+              {(() => {
+                const catalog = getFullCatalog();
+                const allProducts = [];
+                for (const [subCat, products] of Object.entries(catalog)) {
+                  products.forEach((p) => {
+                    allProducts.push({
+                      ...p,
+                      subCategory: subCat,
+                    });
+                  });
+                }
+
+                // Filter products based on selectedCategory
+                const filteredProducts = allProducts.filter((p) => {
+                  if (selectedCategory === 'Water Purifiers') {
+                    return [
+                      'RO Purifiers',
+                      'Hydrogen Rich Water',
+                      'UV Purifiers',
+                      'Gravity Purifiers',
+                      'Commercial Purifier',
+                      'Bathroom Softeners',
+                      'Washing Machine Softeners',
+                      'Automatic Softeners',
+                    ].includes(p.subCategory);
+                  }
+                  if (selectedCategory === 'Air Purifiers') {
+                    return ['Air Purifiers'].includes(p.subCategory);
+                  }
+                  if (selectedCategory === 'Kitchen Appliances') {
+                    return ['Air Fryers', 'Cold Pressed Juicers', 'Bread Makers', 'Multi Cookers'].includes(p.subCategory);
+                  }
+                  return true;
+                });
+
+                // Helper to get image
+                const getProductImage = (p) => {
+                  if (p.image) return p.image;
+                  if (p.subCategory && p.subCategory.includes('Air')) {
+                    return '/img-8.png';
+                  }
+                  return '/kent-sapphire-iot.png';
+                };
+
+                // Categories list for pills
+                const categoryPills = ['Water Purifiers', 'Air Purifiers', 'Kitchen Appliances'];
+
+                return (
+                  <div>
+                    {/* Header Row with Pills */}
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 text-left">
+                      <div>
+                        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Products Catalog</h2>
+                        <p className="text-[12px] text-slate-400 font-semibold mt-1">
+                          {filteredProducts.length} products listed
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 select-none">
+                        {categoryPills.map((cat) => (
+                          <button
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer ${
+                              selectedCategory === cat
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'bg-white text-slate-650 border border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {filteredProducts.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredProducts.map((p) => {
+                          const isCustom = customProducts.some((cp) => cp.id === p.id);
+                          const discountPct = p.basePrice && p.price ? Math.round(((p.basePrice - p.price) / p.basePrice) * 100) : 0;
+                          
+                          // Determine dynamic category label display
+                          let catDisplay = 'Water Purifiers';
+                          if (p.subCategory && p.subCategory.includes('Air')) catDisplay = 'Air Purifiers';
+                          else if (p.subCategory && ['Air Fryers', 'Cold Pressed Juicers', 'Bread Makers', 'Multi Cookers'].includes(p.subCategory)) catDisplay = 'Kitchen Appliances';
+
+                          const badgeBg = catDisplay === 'Air Purifiers' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : (catDisplay === 'Kitchen Appliances' ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-blue-50 text-blue-700 border-blue-100');
+
+                          return (
+                            <div key={p.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between relative text-left">
+                              
+                              {/* Top Section with Image */}
+                              <div>
+                                <div className="w-full h-48 bg-slate-50 rounded-2xl overflow-hidden flex items-center justify-center p-4 relative border border-slate-100/50">
+                                  {/* Category Badge */}
+                                  <span className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[10px] font-black border uppercase tracking-wider ${badgeBg}`}>
+                                    {catDisplay}
+                                  </span>
+
+                                  <img
+                                    src={getProductImage(p)}
+                                    alt={p.name}
+                                    className="max-h-full max-w-full object-contain"
+                                  />
+                                </div>
+
+                                {/* ID and Name */}
+                                <span className="text-[10px] text-slate-400 font-extrabold uppercase mt-4 block tracking-wider">
+                                  ID: {p.id.toUpperCase()}
+                                </span>
+                                <h3 className="text-base font-black text-slate-800 tracking-tight mt-1 line-clamp-2 min-h-[3rem]">
+                                  {p.name}
+                                </h3>
+
+                                {/* Rating */}
+                                <div className="flex items-center gap-1.5 mt-2.5 text-xs font-semibold text-slate-500 select-none">
+                                  <div className="flex items-center text-amber-500">
+                                    <Star size={13} className="fill-current" />
+                                  </div>
+                                  <span className="font-extrabold text-slate-700">{p.rating || '4.5'}</span>
+                                  <span className="text-slate-350">|</span>
+                                  <span>{p.reviews || '0'} reviews</span>
+                                </div>
+
+                                {/* Features List */}
+                                <ul className="mt-4 space-y-2 text-slate-500 text-[12px] font-semibold">
+                                  {p.features && p.features.slice(0, 3).map((feat, idx) => (
+                                    <li key={idx} className="flex items-start gap-1.5">
+                                      <span className="text-blue-500 font-black">✦</span>
+                                      <span className="line-clamp-1">{feat}</span>
+                                    </li>
+                                  ))}
+                                  {(!p.features || p.features.length === 0) && (
+                                    <li className="flex items-start gap-1.5">
+                                      <span className="text-blue-500 font-black">✦</span>
+                                      <span>{p.specs || 'Premium Specifications'}</span>
+                                    </li>
+                                  )}
+                                </ul>
+                              </div>
+
+                              {/* Pricing & Footer Actions */}
+                              <div className="flex items-center justify-between border-t border-slate-100 mt-5 pt-4">
+                                <div>
+                                  {p.basePrice > p.price && (
+                                    <span className="text-xs text-slate-400 line-through block font-semibold">
+                                      ₹{p.basePrice.toLocaleString('en-IN')}
+                                    </span>
+                                  )}
+                                  <span className="text-lg font-black text-[#0b3178]">
+                                    ₹{p.price.toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleStartEditProduct(p)}
+                                    className="text-slate-500 hover:text-[#1D4ED8] hover:bg-slate-50 p-2 rounded-xl transition cursor-pointer border border-slate-200 shrink-0"
+                                    title="Edit Product"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  {isCustom && (
+                                    <button
+                                      onClick={() => handleDeleteProduct(p.id)}
+                                      className="text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition cursor-pointer border border-rose-100 shrink-0"
+                                      title="Delete custom product"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  )}
+                                  <a
+                                    href={`/products/${p.id}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3.5 py-2.5 rounded-xl transition flex items-center gap-1 shrink-0 select-none"
+                                  >
+                                    View Page <ExternalLink size={12} />
+                                  </a>
+                                </div>
+                              </div>
+
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm mt-6">
+                        <EmptyState
+                          icon={Package}
+                          message="No products found in this category."
+                          action="Add a custom product"
+                          onAction={() => setActiveTab('add')}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -1050,47 +1418,116 @@ export default function AdminView({ onBackToHome }) {
           {activeTab === 'enquiries' && (
             <div>
               <SectionHeader title="Customer Enquiries" subtitle="Lead enquiries submitted by customers via the product pages." />
-              {enquiries.length > 0 ? (
-                <DataTable headers={['Customer', 'Mobile', 'Address', 'Product', 'Date', 'Status', 'Action']}>
-                  {enquiries.map((e) => (
-                    <tr key={e.id} className="hover:bg-slate-50/60 transition">
-                      <td className="px-5 py-4 font-extrabold text-slate-800">{e.name}</td>
-                      <td className="px-5 py-4 text-slate-600 font-semibold whitespace-nowrap">
-                        <span className="flex items-center gap-1.5"><Phone size={11} className="text-slate-400" />{e.phone}</span>
-                      </td>
-                      <td className="px-5 py-4 text-slate-500 max-w-[160px] truncate font-semibold" title={e.address}>
-                        <span className="flex items-center gap-1"><MapPin size={10} className="text-slate-400 shrink-0" />{e.address}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="font-extrabold text-slate-800 leading-tight">{e.productName}</p>
-                        <p className="text-[10px] text-slate-400 font-bold">₹{e.productPrice?.toLocaleString('en-IN')}</p>
-                      </td>
-                      <td className="px-5 py-4 text-slate-500 font-semibold text-[11px] whitespace-nowrap">{e.submittedAt}</td>
-                      <td className="px-5 py-4">
-                        <select
-                          value={e.status || 'Pending'}
-                          onChange={(el) => handleUpdateEnquiryStatus(e.id, el.target.value)}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-black text-slate-600 bg-white focus:outline-none focus:border-[#1D4ED8] cursor-pointer"
-                        >
-                          <option>Pending</option>
-                          <option>In Discussion</option>
-                          <option>Sell</option>
-                          <option>Cancelled</option>
-                        </select>
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <button onClick={() => handleDeleteEnquiry(e.id)} className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer">
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </DataTable>
-              ) : (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-                  <EmptyState icon={Mail} message="No customer enquiries received yet." />
+               {/* Status summary */}
+              {enquiries.length > 0 && (
+                <div className="flex gap-3 mb-6 flex-wrap select-none">
+                  {[
+                    { label: 'All',         color: 'bg-slate-100 text-slate-700 border-slate-300', value: 'all' },
+                    { label: 'Pending',     color: 'bg-blue-50 text-blue-700 border-blue-200', value: 'Pending' },
+                    { label: 'Contacted',   color: 'bg-amber-50 text-amber-700 border-amber-200', value: 'Contacted' },
+                    { label: 'Closed',      color: 'bg-emerald-50 text-emerald-700 border-emerald-200', value: 'Closed' },
+                  ].map(({ label, color, value }) => {
+                    const count = value === 'all' ? enquiries.length : enquiries.filter((e) => (e.status || 'Pending') === value).length;
+                    const isActive = enquiryStatusFilter === value;
+                    
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => setEnquiryStatusFilter(value)}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full border text-[12px] font-black transition cursor-pointer ${color} ${
+                          isActive 
+                            ? 'ring-2 ring-offset-2 ring-blue-500 opacity-100 scale-102 shadow-xs' 
+                            : 'opacity-50 hover:opacity-85'
+                        }`}
+                      >
+                        <span>{label}</span>
+                        <span className="font-extrabold">{count}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
+
+              {/* Active Filter Helper text */}
+              {enquiryStatusFilter !== 'all' && enquiries.length > 0 && (
+                <div className="text-xs font-semibold text-slate-500 mb-4 text-left flex items-center gap-2">
+                  <span>Showing only <strong>{enquiryStatusFilter}</strong> customer enquiries.</span>
+                  <button
+                    onClick={() => setEnquiryStatusFilter('all')}
+                    className="text-[#1D4ED8] hover:underline cursor-pointer font-bold"
+                  >
+                    Reset Filter
+                  </button>
+                </div>
+              )}
+
+              {(() => {
+                const displayedEnquiries = enquiryStatusFilter === 'all'
+                  ? enquiries
+                  : enquiries.filter((e) => (e.status || 'Pending') === enquiryStatusFilter);
+
+                if (displayedEnquiries.length > 0) {
+                  return (
+                    <DataTable headers={['Customer', 'Mobile', 'Product', 'Message', 'Date', 'Status', 'Action']}>
+                      {displayedEnquiries.map((e) => (
+                        <tr key={e.id} className="hover:bg-slate-50/60 transition">
+                          <td className="px-5 py-4 font-extrabold text-slate-800">{e.name}</td>
+                          <td className="px-5 py-4 text-slate-600 font-semibold whitespace-nowrap">
+                            <span className="flex items-center gap-1.5"><Phone size={11} className="text-slate-400" />{e.phone}</span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <p className="font-extrabold text-slate-800 leading-tight">{e.productName}</p>
+                            <p className="text-[10px] text-slate-400 font-bold">₹{e.productPrice?.toLocaleString('en-IN')}</p>
+                          </td>
+                          <td className="px-5 py-4 text-slate-500 max-w-[180px] font-semibold text-[11px]" title={e.message}>
+                            <p className="truncate">{e.message || <span className="text-slate-300 italic">—</span>}</p>
+                          </td>
+                          <td className="px-5 py-4 text-slate-500 font-semibold text-[11px] whitespace-nowrap">{e.submittedAt}</td>
+                          <td className="px-5 py-4">
+                            <select
+                              value={e.status || 'Pending'}
+                              onChange={(el) => handleUpdateEnquiryStatus(e.id, el.target.value)}
+                              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${
+                                (e.status || 'Pending') === 'Pending' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : e.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
+                            >
+                              <option>Pending</option>
+                              <option>Contacted</option>
+                              <option>Closed</option>
+                            </select>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            <button onClick={() => handleDeleteEnquiry(e.id)} className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer">
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </DataTable>
+                  );
+                } else if (enquiries.length > 0) {
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center text-slate-500 font-semibold">
+                      <Mail className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                      <p>No enquiries found matching status <strong>{enquiryStatusFilter}</strong>.</p>
+                      <button
+                        onClick={() => setEnquiryStatusFilter('all')}
+                        className="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer shadow-xs"
+                      >
+                        Reset Filter
+                      </button>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                      <EmptyState icon={Mail} message="No customer enquiries received yet." />
+                    </div>
+                  );
+                }
+              })()}
             </div>
           )}
 
@@ -1124,49 +1561,40 @@ export default function AdminView({ onBackToHome }) {
               </div>
 
               {serviceBookings.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 text-left">
+                <div className="space-y-4 text-left">
                   {serviceBookings.map((b) => {
                     const assignedEmp = employees.find(e => e.id === b.assignedEmployeeId);
                     return (
-                      <div key={b.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col">
+                      <div key={b.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col xl:flex-row xl:items-center justify-between gap-5 animate-in fade-in duration-200">
 
-                        {/* Card Header */}
-                        <div className="flex items-start justify-between p-5 pb-4 border-b border-slate-50">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-black text-[#1D4ED8] bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-lg tracking-wide">{b.id}</span>
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${
-                                b.status === 'Pending'  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              }`}>
-                                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${
-                                  b.status === 'Pending' ? 'bg-amber-500' : b.status === 'Finished' ? 'bg-indigo-500' : 'bg-emerald-500'
-                                }`} />
-                                {b.status}
-                              </span>
-                            </div>
-                            <h4 className="font-extrabold text-slate-800 text-[14px] leading-tight">{b.name}</h4>
-                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{b.createdAt}</p>
+                        {/* Ref ID & Status */}
+                        <div className="min-w-[180px]">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[10px] font-black text-[#1D4ED8] bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-lg tracking-wide">{b.id}</span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${
+                              b.status === 'Pending'  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${
+                                b.status === 'Pending' ? 'bg-amber-500' : b.status === 'Finished' ? 'bg-indigo-500' : 'bg-emerald-500'
+                              }`} />
+                              {b.status}
+                            </span>
                           </div>
-                          <button
-                            onClick={() => handleDeleteBooking(b.id)}
-                            className="text-slate-300 hover:text-rose-500 p-1.5 hover:bg-rose-50 rounded-xl transition cursor-pointer shrink-0 ml-2"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          <h4 className="font-extrabold text-slate-800 text-[14px] leading-tight">{b.name}</h4>
+                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{b.createdAt}</p>
                         </div>
 
-                        {/* Contact Info */}
-                        <div className="px-5 py-3.5 space-y-1.5 border-b border-slate-50">
-                          <div className="flex items-center gap-2 text-[12px] text-slate-600 font-semibold">
-                            <Phone size={11} className="text-slate-400 shrink-0" />
+                        {/* Contact details */}
+                        <div className="flex flex-col gap-1 text-[12px] text-slate-655 font-semibold min-w-[210px] flex-1">
+                          <div className="flex items-center gap-2">
+                            <Phone size={12} className="text-slate-400 shrink-0" />
                             <span>{b.phone}</span>
                           </div>
                           <div className="flex items-start gap-2 text-[11px] text-slate-400 font-semibold">
-                            <MapPin size={11} className="text-slate-400 shrink-0 mt-0.5" />
-                            <span className="truncate" title={b.address}>{b.pincode ? `${b.pincode} – ` : ''}{b.address}</span>
+                            <MapPin size={12} className="text-slate-400 shrink-0 mt-0.5" />
+                            <span className="truncate max-w-[170px]" title={b.address}>{b.pincode ? `${b.pincode} – ` : ''}{b.address}</span>
                           </div>
                           <div className="pt-0.5">
                             <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide">
@@ -1175,89 +1603,87 @@ export default function AdminView({ onBackToHome }) {
                           </div>
                         </div>
 
-                        {/* Assignment Controls */}
-                        <div className="px-5 py-4 space-y-3 flex-1">
+                        {/* Product / Date / Status Controls */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-[340px]">
                           <div>
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Product</label>
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Product</label>
                             <select
                               value={b.soldProduct || ''}
                               onChange={(e) => handleUpdateServiceAssignment(b.id, 'soldProduct', e.target.value)}
-                              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 cursor-pointer transition"
+                              className="w-full px-2.5 py-1.5 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] cursor-pointer"
                             >
                               <option value="">Not Assigned</option>
                               {allProductsList.map((name) => <option key={name}>{name}</option>)}
                             </select>
                           </div>
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Delivery Date</label>
-                              <input
-                                type="date"
-                                value={b.deliveryDate || ''}
-                                onChange={(e) => handleUpdateServiceAssignment(b.id, 'deliveryDate', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 cursor-pointer transition"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Status</label>
-                              <select
-                                value={b.status}
-                                onChange={(e) => handleUpdateBookingStatus(b.id, e.target.value)}
-                                className={`w-full px-2.5 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${
-                                  b.status === 'Pending'  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                  : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                }`}
-                              >
-                                <option>Pending</option>
-                                <option>Finished</option>
-                                <option>Success</option>
-                              </select>
-                            </div>
-                          </div>
-
                           <div>
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Assign Technician</label>
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Delivery Date</label>
+                            <input
+                              type="date"
+                              value={b.deliveryDate || ''}
+                              onChange={(e) => handleUpdateServiceAssignment(b.id, 'deliveryDate', e.target.value)}
+                              className="w-full px-2 py-1 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] cursor-pointer"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Status</label>
                             <select
-                              value={b.assignedEmployeeId || ''}
-                              onChange={(e) => handleUpdateServiceAssignment(b.id, 'assignedEmployeeId', e.target.value)}
-                              className="w-full px-3 py-2 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] focus:ring-2 focus:ring-blue-100 cursor-pointer transition"
+                              value={b.status}
+                              onChange={(e) => handleUpdateBookingStatus(b.id, e.target.value)}
+                              className={`w-full px-2.5 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider focus:outline-none cursor-pointer ${
+                                b.status === 'Pending'  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}
                             >
-                              <option value="">Unassigned</option>
-                              {employees.map((emp) => (
-                                <option key={emp.id} value={emp.id}>{emp.name} ({emp.specialization || 'General'})</option>
-                              ))}
+                              <option>Pending</option>
+                              <option>Finished</option>
+                              <option>Success</option>
                             </select>
                           </div>
                         </div>
 
-                        {/* Assigned Technician Badge */}
-                        {assignedEmp && (
-                          <div className="px-5 pb-4">
-                            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-2xl px-3 py-2">
-                              <div className="w-6 h-6 rounded-full bg-blue-200 flex items-center justify-center text-[10px] font-black text-blue-700 shrink-0">
-                                {assignedEmp.name.charAt(0).toUpperCase()}
+                        {/* Assign Tech Controls */}
+                        <div className="min-w-[180px]">
+                          <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Assign Technician</label>
+                          <select
+                            value={b.assignedEmployeeId || ''}
+                            onChange={(e) => handleUpdateServiceAssignment(b.id, 'assignedEmployeeId', e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] cursor-pointer"
+                          >
+                            <option value="">Unassigned</option>
+                            {employees.map((emp) => (
+                              <option key={emp.id} value={emp.id}>{emp.name} ({emp.specialization || 'General'})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Right Actions & Technician Badge */}
+                        <div className="flex flex-row xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 shrink-0 pl-0 xl:pl-4 xl:border-l xl:border-slate-50 min-w-[140px]">
+                          {assignedEmp ? (
+                            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-2.5 py-1.5">
+                              <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center text-[9px] font-black text-blue-700">
+                                {assignedEmp.name.charAt(0)}
                               </div>
-                              <div className="min-w-0">
-                                <p className="text-[11px] font-extrabold text-[#1D4ED8] truncate">{assignedEmp.name}</p>
-                                <p className="text-[9px] text-blue-400 font-bold uppercase tracking-wider">{assignedEmp.specialization || 'General'} · {assignedEmp.id}</p>
-                              </div>
-                              <span className={`ml-auto text-[9px] font-black px-2 py-0.5 rounded-full border shrink-0 ${
-                                assignedEmp.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'
-                              }`}>
-                                {assignedEmp.status || 'Active'}
-                              </span>
+                              <span className="text-[10px] font-bold text-blue-700">{assignedEmp.name}</span>
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400 italic">Unassigned</span>
+                          )}
+                          <button
+                            onClick={() => handleDeleteServiceBooking(b.id)}
+                            className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-                  <EmptyState icon={Wrench} message="No service requests registered yet." />
+                  <EmptyState icon={Wrench} message="No service requests yet." />
                 </div>
               )}
             </div>
@@ -1266,43 +1692,23 @@ export default function AdminView({ onBackToHome }) {
           {/* ── Employees ──────────────────────────────────────────────────── */}
           {activeTab === 'employees' && (
             <div>
-              {/* Header with "+ Add Technician" button */}
+              {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 text-left">
                 <div>
-                  <h2 className="text-xl font-black text-slate-800 tracking-tight">Technicians</h2>
-                  <p className="text-[12px] text-slate-400 font-semibold mt-1">Manage service technicians, assign specializations, and update their statuses.</p>
+                  <h2 className="text-xl font-black text-slate-800 tracking-tight">Employees</h2>
+                  <p className="text-[12px] text-slate-400 font-semibold mt-1">Manage your field technicians, their specializations, and service capacity.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      const s = localStorage.getItem('kentro-employees');
-                      if (s) setEmployees(JSON.parse(s));
-                    }}
-                    className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-650 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold transition cursor-pointer shadow-xs"
-                  >
-                    <RefreshCw size={13} className="text-slate-400" />
-                    Refresh
-                  </button>
-                  <button
-                    onClick={() => setIsAddEmployeeModalOpen(true)}
-                    className="flex items-center gap-1.5 bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] text-white px-5 py-2.5 rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-blue-200"
-                  >
-                    <Plus size={14} />
-                    Add Technician
-                  </button>
-                </div>
+                <button
+                  onClick={() => setIsAddEmployeeModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] text-white px-5 py-2.5 rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-blue-200"
+                >
+                  <Plus size={14} />
+                  Add Employee
+                </button>
               </div>
 
-              {empSuccess && (
-                <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[13px] font-extrabold px-5 py-4 rounded-2xl mb-6 shadow-sm">
-                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-                  Employee registered successfully!
-                </div>
-              )}
-
-              {/* Grid of Technician Cards */}
               {employees.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+                <div className="space-y-4 text-left">
                   {employees.map((emp) => {
                     // Calculate Service Record statistics
                     const empBookings = serviceBookings.filter(b => b.assignedEmployeeId === emp.id);
@@ -1311,111 +1717,105 @@ export default function AdminView({ onBackToHome }) {
                     const doneCount = empBookings.filter(b => b.status === 'Finished' || b.status === 'Success').length;
 
                     return (
-                      <div key={emp.id} className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between">
-                        <div>
-                          {/* Top Row: Avatar + Name + Specialization & Inline Actions */}
-                          <div className="flex items-start gap-3.5 mb-4">
-                            <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-blue-600 bg-blue-50 font-black text-lg shadow-2xs">
-                              {emp.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="font-extrabold text-slate-800 text-[14px] leading-tight tracking-tight uppercase truncate">{emp.name}</h4>
-                              <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 px-2 py-0.5 rounded text-[9px] font-black tracking-wider uppercase inline-block mt-1">
-                                {emp.specialization || 'General'}
-                              </span>
-                            </div>
+                      <div key={emp.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col xl:flex-row xl:items-center justify-between gap-5 animate-in fade-in duration-200">
 
-                            {/* Actions on top right */}
-                            <div className="flex items-center gap-1.5 ml-auto text-slate-400 shrink-0">
-                              <button
-                                onClick={() => handleToggleEmployeeStatus(emp.id)}
-                                className="hover:text-emerald-500 transition cursor-pointer p-1 rounded-lg hover:bg-slate-50"
-                                title="Toggle Status"
-                              >
-                                <UserCheck size={15} />
-                              </button>
-                              <button
-                                onClick={() => handleStartEditEmployee(emp)}
-                                className="hover:text-[#1D4ED8] transition cursor-pointer p-1 rounded-lg hover:bg-slate-50"
-                                title="Edit Technician"
-                              >
-                                <Pencil size={15} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteEmployee(emp.id)}
-                                disabled={emp.id === 'EMP-101'}
-                                className="hover:text-rose-500 transition cursor-pointer p-1 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="Delete"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
+                        {/* Avatar & Name & Specialization */}
+                        <div className="flex items-center gap-4 min-w-[240px]">
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-blue-600 bg-blue-50 font-black text-lg shadow-2xs">
+                            {emp.name.charAt(0).toUpperCase()}
                           </div>
-
-                          {/* Contact Details */}
-                          <div className="space-y-2 mt-4 text-[13px] text-slate-655 font-semibold border-t border-slate-50 pt-4">
-                            <div className="flex items-center gap-2">
-                              <Phone size={13} className="text-slate-400 shrink-0" />
-                              <span>{emp.mobile || '—'}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Mail size={13} className="text-slate-400 shrink-0" />
-                              <span className="truncate" title={emp.email}>{emp.email || '—'}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <MapPin size={13} className="text-slate-400 shrink-0" />
-                              <span className="truncate" title={emp.address}>{emp.address || '—'}</span>
-                            </div>
-                          </div>
-
-                          {/* Credentials mention (User ID & Password) */}
-                          <div className="mt-4 pt-3 border-t border-slate-100/80 text-[11px] text-slate-500 flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl">
-                            <div>
-                              <span className="text-slate-400 font-bold uppercase mr-1">User ID:</span>
-                              <code className="font-mono text-[#1D4ED8] font-bold">{emp.loginId}</code>
-                            </div>
-                            <div>
-                              <span className="text-slate-400 font-bold uppercase mr-1">Pass:</span>
-                              <code className="font-mono text-slate-600 font-bold">{emp.password}</code>
-                            </div>
-                          </div>
-
-                          {/* Service Record stats section */}
-                          <div className="mt-5 border-t border-slate-50 pt-4">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                              Service Record
+                          <div className="min-w-0">
+                            <h4 className="font-extrabold text-slate-800 text-[14.5px] leading-tight tracking-tight uppercase truncate">{emp.name}</h4>
+                            <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 px-2 py-0.5 rounded text-[9px] font-black tracking-wider uppercase inline-block mt-1">
+                              {emp.specialization || 'General'}
                             </span>
-                            <div className="grid grid-cols-3 gap-2.5">
-                              <div className="bg-[#F8FAFC] border border-slate-100 rounded-xl p-2 text-center">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Assigned</p>
-                                <p className="text-base font-black text-slate-700 mt-1">{assignedCount}</p>
-                              </div>
-                              <div className="bg-[#F8FAFC] border border-slate-100 rounded-xl p-2 text-center">
-                                <p className="text-[9px] font-black text-[#1D4ED8] uppercase tracking-wider">Active</p>
-                                <p className="text-base font-black text-[#1D4ED8] mt-1">{activeCount}</p>
-                              </div>
-                              <div className="bg-[#F8FAFC] border border-slate-100 rounded-xl p-2 text-center">
-                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Done</p>
-                                <p className="text-base font-black text-emerald-600 mt-1">{doneCount}</p>
-                              </div>
+                          </div>
+                        </div>
+
+                        {/* Contact details */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 xl:flex xl:flex-col gap-2.5 text-[12px] text-slate-655 font-semibold min-w-[200px] flex-1">
+                          <div className="flex items-center gap-2">
+                            <Phone size={12} className="text-slate-400 shrink-0" />
+                            <span>{emp.mobile || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Mail size={12} className="text-slate-400 shrink-0" />
+                            <span className="truncate max-w-[150px]" title={emp.email}>{emp.email || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin size={12} className="text-slate-400 shrink-0" />
+                            <span className="truncate max-w-[150px]" title={emp.address}>{emp.address || '—'}</span>
+                          </div>
+                        </div>
+
+                        {/* Credentials */}
+                        <div className="bg-[#F8FAFC] border border-slate-100 px-3.5 py-2.5 rounded-2xl min-w-[170px] text-[11px]">
+                          <div className="mb-1">
+                            <span className="text-slate-400 font-bold uppercase mr-1.5 text-[9px]">User ID:</span>
+                            <code className="font-mono text-[#1D4ED8] font-bold">{emp.loginId}</code>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 font-bold uppercase mr-1.5 text-[9px]">Pass:</span>
+                            <code className="font-mono text-slate-650 font-bold">{emp.password}</code>
+                          </div>
+                        </div>
+
+                        {/* Service Record */}
+                        <div className="min-w-[230px]">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-2">Service Record</span>
+                          <div className="flex gap-2">
+                            <div className="bg-[#F8FAFC] border border-slate-100 rounded-xl px-3 py-1.5 text-center flex-1">
+                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Assigned</p>
+                              <p className="text-[13px] font-black text-slate-700 mt-0.5">{assignedCount}</p>
+                            </div>
+                            <div className="bg-[#F8FAFC] border border-slate-100 rounded-xl px-3 py-1.5 text-center flex-1">
+                              <p className="text-[8px] font-black text-[#1D4ED8] uppercase tracking-wider">Active</p>
+                              <p className="text-[13px] font-black text-[#1D4ED8] mt-0.5">{activeCount}</p>
+                            </div>
+                            <div className="bg-[#F8FAFC] border border-slate-100 rounded-xl px-3 py-1.5 text-center flex-1">
+                              <p className="text-[8px] font-black text-emerald-650 uppercase tracking-wider">Done</p>
+                              <p className="text-[13px] font-black text-emerald-650 mt-0.5">{doneCount}</p>
                             </div>
                           </div>
                         </div>
 
-                        {/* Bottom Row: Status Indicator */}
-                        <div className="mt-5 pt-3 border-t border-slate-50 flex items-center justify-between">
+                        {/* Status & Actions */}
+                        <div className="flex flex-row xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 shrink-0 pl-0 xl:pl-4 xl:border-l xl:border-slate-50 min-w-[120px]">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border ${
                             emp.status === 'Active'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                              : 'bg-rose-50 text-rose-600 border-rose-100'
+                              : 'bg-rose-50 text-rose-605 border-rose-100'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${emp.status === 'Active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                             {emp.status || 'Active'}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                            ID: {emp.id}
-                          </span>
+
+                          <div className="flex items-center gap-1 text-slate-400">
+                            <button
+                              onClick={() => handleToggleEmployeeStatus(emp.id)}
+                              className="hover:text-emerald-500 transition cursor-pointer p-1.5 rounded-lg hover:bg-slate-50"
+                              title="Toggle Status"
+                            >
+                              <UserCheck size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleStartEditEmployee(emp)}
+                              className="hover:text-[#1D4ED8] transition cursor-pointer p-1.5 rounded-lg hover:bg-slate-50"
+                              title="Edit Technician"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEmployee(emp.id)}
+                              disabled={emp.id === 'EMP-101'}
+                              className="hover:text-rose-500 transition cursor-pointer p-1.5 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
+
                       </div>
                     );
                   })}
@@ -1529,6 +1929,229 @@ export default function AdminView({ onBackToHome }) {
             </div>
           )}
 
+          {/* ── Offers Manager ────────────────────────────────────────────── */}
+          {activeTab === 'offers' && (
+            <div>
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 text-left">
+                <div>
+                  <h2 className="text-xl font-black text-slate-800 tracking-tight">Promo Offers</h2>
+                  <p className="text-[12px] text-slate-400 font-semibold mt-1">Create and manage marketing promotions, coupon discounts, and special product deals.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      const s = localStorage.getItem('kentro-offers');
+                      if (s) setOffers(JSON.parse(s));
+                    }}
+                    className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-650 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold transition cursor-pointer shadow-xs"
+                  >
+                    <RefreshCw size={13} className="text-slate-400" />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => setIsAddOfferModalOpen(true)}
+                    className="flex items-center gap-1.5 bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] text-white px-5 py-2.5 rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-blue-200"
+                  >
+                    <Plus size={14} />
+                    Add Offer
+                  </button>
+                </div>
+              </div>
+
+              {offerSuccess && (
+                <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[13px] font-extrabold px-5 py-4 rounded-2xl mb-6 shadow-sm">
+                  <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                  Offer saved successfully!
+                </div>
+              )}
+
+              {/* Grid of Offers */}
+              {offers.length > 0 ? (
+                <div className="space-y-4 text-left animate-in fade-in duration-200">
+                  {offers.map((off) => (
+                    <div key={off.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col xl:flex-row xl:items-center justify-between gap-5 relative overflow-hidden">
+                      
+                      {/* Left Block: Code & Title & Description */}
+                      <div className="flex items-start gap-4 min-w-[320px] flex-1">
+                        <div className="bg-blue-50 text-[#1D4ED8] border border-blue-100 px-3.5 py-2 rounded-xl text-[13px] font-mono font-black tracking-wider uppercase shrink-0">
+                          {off.code}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-slate-800 text-[15px] leading-tight mb-1">{off.title}</h4>
+                          <p className="text-[12px] text-slate-400 font-semibold leading-relaxed line-clamp-2" title={off.description}>
+                            {off.description || 'No description provided.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Middle block: Discount details */}
+                      <div className="bg-[#F8FAFC] border border-slate-100 px-4 py-2.5 rounded-2xl min-w-[130px] text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Discount</p>
+                        <p className="text-[15px] font-black text-[#1D4ED8] mt-0.5">
+                          {off.type === 'Percentage' ? `${off.value}%` : `₹${off.value}`}
+                        </p>
+                      </div>
+
+                      {/* Middle block 2: Applies To */}
+                      <div className="bg-[#F8FAFC] border border-slate-100 px-4 py-2.5 rounded-2xl min-w-[200px]">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Applies To</p>
+                        <p className="text-[11.5px] font-extrabold text-slate-700 truncate" title={off.applicableTo === 'all' ? 'All Products' : off.applicableTo}>
+                          {off.applicableTo === 'all' ? 'All Products' : off.applicableTo}
+                        </p>
+                      </div>
+
+                      {/* Right Block: Status & Actions */}
+                      <div className="flex flex-row xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 shrink-0 pl-0 xl:pl-4 xl:border-l xl:border-slate-50 min-w-[140px]">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border ${
+                          off.status === 'Active'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                            : 'bg-rose-50 text-rose-600 border-rose-100'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${off.status === 'Active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                          {off.status}
+                        </span>
+
+                        <div className="flex items-center gap-1 text-slate-400">
+                          <button
+                            onClick={() => handleToggleOfferStatus(off.id)}
+                            className="hover:text-emerald-500 transition cursor-pointer p-1.5 rounded-lg hover:bg-slate-50"
+                            title="Toggle Status"
+                          >
+                            <UserCheck size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleStartEditOffer(off)}
+                            className="hover:text-[#1D4ED8] transition cursor-pointer p-1.5 rounded-lg hover:bg-slate-50"
+                            title="Edit Offer"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteOffer(off.id)}
+                            className="hover:text-rose-500 transition cursor-pointer p-1.5 rounded-lg hover:bg-slate-50"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                  <EmptyState icon={Tag} message="No offers registered yet." action="Create your first offer" onAction={() => setIsAddOfferModalOpen(true)} />
+                </div>
+              )}
+
+              {/* Add Offer Modal */}
+              {isAddOfferModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+                    onClick={() => { setIsAddOfferModalOpen(false); setEditingOfferId(null); setOfferCode(''); setOfferTitle(''); setOfferDescription(''); setOfferType('Percentage'); setOfferValue(''); setOfferApplicableTo('all'); setOfferStatus('Active'); }}
+                  />
+
+                  {/* Modal Container */}
+                  <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg z-50 p-6 md:p-8 border border-slate-100 animate-in fade-in zoom-in duration-200 text-left">
+                    <button
+                      onClick={() => { setIsAddOfferModalOpen(false); setEditingOfferId(null); setOfferCode(''); setOfferTitle(''); setOfferDescription(''); setOfferType('Percentage'); setOfferValue(''); setOfferApplicableTo('all'); setOfferStatus('Active'); }}
+                      className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 transition p-2 cursor-pointer rounded-full hover:bg-slate-100"
+                    >
+                      <X size={18} />
+                    </button>
+
+                    <h3 className="text-lg font-black text-slate-800 mb-5 flex items-center gap-2">
+                      {editingOfferId
+                        ? <><Pencil size={18} className="text-[#1D4ED8]" /> Edit Promo Offer</>
+                        : <><Tag size={18} className="text-[#1D4ED8]" /> Create Promo Offer</>}
+                    </h3>
+
+                    <form onSubmit={handleAddOffer} className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Offer Code *</label>
+                          <input type="text" required placeholder="e.g. KENT50" value={offerCode} onChange={(e) => setOfferCode(e.target.value.toUpperCase())} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Offer Title *</label>
+                          <input type="text" required placeholder="e.g. 50% Off Special Deal" value={offerTitle} onChange={(e) => setOfferTitle(e.target.value)} className={inputCls} />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Description</label>
+                        <textarea rows={2} placeholder="Get flat discount on purifiers..." value={offerDescription} onChange={(e) => setOfferDescription(e.target.value)} className={`${inputCls} resize-none`} />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Discount Type</label>
+                          <select
+                            value={offerType}
+                            onChange={(e) => setOfferType(e.target.value)}
+                            className={inputCls + ' cursor-pointer'}
+                          >
+                            <option>Percentage</option>
+                            <option>Flat Discount</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Discount Value *</label>
+                          <input type="number" required placeholder={offerType === 'Percentage' ? 'e.g. 10' : 'e.g. 1500'} value={offerValue} onChange={(e) => setOfferValue(e.target.value)} className={inputCls} />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Applies To</label>
+                        <select
+                          value={offerApplicableTo}
+                          onChange={(e) => setOfferApplicableTo(e.target.value)}
+                          className={inputCls + ' cursor-pointer'}
+                        >
+                          <option value="all">All Products</option>
+                          {allProductsList.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">Status</label>
+                        <div className="flex gap-2 h-10">
+                          {['Active', 'Inactive'].map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setOfferStatus(s)}
+                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl text-[12px] font-black border transition cursor-pointer ${
+                                offerStatus === s
+                                  ? s === 'Active'
+                                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-100'
+                                    : 'bg-rose-50 text-white border-rose-500 shadow-md shadow-rose-100'
+                                  : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button type="submit"
+                        className="w-full bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] text-white py-3 rounded-xl font-extrabold text-[13px] shadow-md transition cursor-pointer mt-4">
+                        {editingOfferId ? 'Save Changes' : 'Create Offer'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Demo Bookings ─────────────────────────────────────────────── */}
           {activeTab === 'demo' && (
             <div>
@@ -1536,73 +2159,120 @@ export default function AdminView({ onBackToHome }) {
 
               {/* Status summary */}
               {demoBookings.length > 0 && (
-                <div className="flex gap-3 mb-6 flex-wrap">
+                <div className="flex gap-3 mb-6 flex-wrap select-none">
                   {[
-                    { label: 'New',         color: 'bg-blue-50 text-blue-700 border-blue-200' },
-                    { label: 'Contacted',   color: 'bg-amber-50 text-amber-700 border-amber-200' },
-                    { label: 'Scheduled',   color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-                    { label: 'Completed',   color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-                    { label: 'Cancelled',   color: 'bg-rose-50 text-rose-700 border-rose-200' },
-                  ].map(({ label, color }) => {
-                    const count = demoBookings.filter((d) => d.status === label).length;
+                    { label: 'All',         color: 'bg-slate-100 text-slate-700 border-slate-300', value: 'all' },
+                    { label: 'New',         color: 'bg-blue-50 text-blue-700 border-blue-200', value: 'New' },
+                    { label: 'Contacted',   color: 'bg-amber-50 text-amber-700 border-amber-200', value: 'Contacted' },
+                    { label: 'Scheduled',   color: 'bg-indigo-50 text-indigo-700 border-indigo-200', value: 'Scheduled' },
+                    { label: 'Completed',   color: 'bg-emerald-50 text-emerald-700 border-emerald-200', value: 'Completed' },
+                    { label: 'Cancelled',   color: 'bg-rose-50 text-rose-700 border-rose-200', value: 'Cancelled' },
+                  ].map(({ label, color, value }) => {
+                    const count = value === 'all' ? demoBookings.length : demoBookings.filter((d) => (d.status || 'New') === value).length;
+                    const isActive = demoStatusFilter === value;
+                    
                     return (
-                      <div key={label} className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[12px] font-black ${color}`}>
+                      <button
+                        key={label}
+                        onClick={() => setDemoStatusFilter(value)}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full border text-[12px] font-black transition cursor-pointer ${color} ${
+                          isActive 
+                            ? 'ring-2 ring-offset-2 ring-blue-500 opacity-100 scale-102 shadow-xs' 
+                            : 'opacity-50 hover:opacity-85'
+                        }`}
+                      >
                         <span>{label}</span>
-                        <span>{count}</span>
-                      </div>
+                        <span className="font-extrabold">{count}</span>
+                      </button>
                     );
                   })}
                 </div>
               )}
 
-              {demoBookings.length > 0 ? (
-                <DataTable headers={['Ref ID', 'Customer', 'Mobile', 'Interested In', 'Message', 'Submitted', 'Status', 'Action']}>
-                  {demoBookings.map((d) => (
-                    <tr key={d.id} className="hover:bg-slate-50/60 transition">
-                      <td className="px-5 py-4 font-black text-[#1D4ED8] whitespace-nowrap text-[11px]">{d.id}</td>
-                      <td className="px-5 py-4 font-extrabold text-slate-800 whitespace-nowrap">{d.name}</td>
-                      <td className="px-5 py-4 text-slate-600 font-semibold whitespace-nowrap">
-                        <span className="flex items-center gap-1"><Phone size={11} className="text-slate-400" />{d.phone}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 px-2.5 py-1 rounded-lg text-[10px] font-black whitespace-nowrap">{d.interestedIn}</span>
-                      </td>
-                      <td className="px-5 py-4 text-slate-500 font-semibold max-w-[200px]">
-                        <p className="truncate text-[11px]" title={d.message}>{d.message || <span className="text-slate-300 italic">—</span>}</p>
-                      </td>
-                      <td className="px-5 py-4 text-slate-400 font-semibold text-[11px] whitespace-nowrap">{d.submittedAt}</td>
-                      <td className="px-5 py-4">
-                        <select
-                          value={d.status || 'New'}
-                          onChange={(e) => handleUpdateDemoStatus(d.id, e.target.value)}
-                          className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${
-                            d.status === 'New'       ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : d.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : d.status === 'Scheduled' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                            : d.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}
-                        >
-                          <option>New</option>
-                          <option>Contacted</option>
-                          <option>Scheduled</option>
-                          <option>Completed</option>
-                          <option>Cancelled</option>
-                        </select>
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <button onClick={() => handleDeleteDemoBooking(d.id)} className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer" title="Delete">
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </DataTable>
-              ) : (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
-                  <EmptyState icon={ClipboardList} message="No demo bookings received yet." />
+              {/* Active Filter Helper text */}
+              {demoStatusFilter !== 'all' && demoBookings.length > 0 && (
+                <div className="text-xs font-semibold text-slate-500 mb-4 text-left flex items-center gap-2">
+                  <span>Showing only <strong>{demoStatusFilter}</strong> demo requests.</span>
+                  <button
+                    onClick={() => setDemoStatusFilter('all')}
+                    className="text-[#1D4ED8] hover:underline cursor-pointer font-bold"
+                  >
+                    Reset Filter
+                  </button>
                 </div>
               )}
+
+              {(() => {
+                const displayedBookings = demoStatusFilter === 'all'
+                  ? demoBookings
+                  : demoBookings.filter((d) => (d.status || 'New') === demoStatusFilter);
+
+                if (displayedBookings.length > 0) {
+                  return (
+                    <DataTable headers={['Ref ID', 'Customer', 'Mobile', 'Interested In', 'Message', 'Submitted', 'Status', 'Action']}>
+                      {displayedBookings.map((d) => (
+                        <tr key={d.id} className="hover:bg-slate-50/60 transition">
+                          <td className="px-5 py-4 font-black text-[#1D4ED8] whitespace-nowrap text-[11px]">{d.id}</td>
+                          <td className="px-5 py-4 font-extrabold text-slate-800 whitespace-nowrap">{d.name}</td>
+                          <td className="px-5 py-4 text-slate-600 font-semibold whitespace-nowrap">
+                            <span className="flex items-center gap-1"><Phone size={11} className="text-slate-400" />{d.phone}</span>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 px-2.5 py-1 rounded-lg text-[10px] font-black whitespace-nowrap">{d.interestedIn}</span>
+                          </td>
+                          <td className="px-5 py-4 text-slate-500 font-semibold max-w-[200px]">
+                            <p className="truncate text-[11px]" title={d.message}>{d.message || <span className="text-slate-300 italic">—</span>}</p>
+                          </td>
+                          <td className="px-5 py-4 text-slate-400 font-semibold text-[11px] whitespace-nowrap">{d.submittedAt}</td>
+                          <td className="px-5 py-4">
+                            <select
+                              value={d.status || 'New'}
+                              onChange={(e) => handleUpdateDemoStatus(d.id, e.target.value)}
+                              className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${
+                                d.status === 'New'       ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : d.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : d.status === 'Scheduled' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : d.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}
+                            >
+                              <option>New</option>
+                              <option>Contacted</option>
+                              <option>Scheduled</option>
+                              <option>Completed</option>
+                              <option>Cancelled</option>
+                            </select>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            <button onClick={() => handleDeleteDemoBooking(d.id)} className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer" title="Delete">
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </DataTable>
+                  );
+                } else if (demoBookings.length > 0) {
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center text-slate-500 font-semibold">
+                      <ClipboardList className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                      <p>No bookings found matching status <strong>{demoStatusFilter}</strong>.</p>
+                      <button
+                        onClick={() => setDemoStatusFilter('all')}
+                        className="mt-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition cursor-pointer shadow-xs"
+                      >
+                        Reset Filter
+                      </button>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+                      <EmptyState icon={ClipboardList} message="No demo bookings received yet." />
+                    </div>
+                  );
+                }
+              })()}
             </div>
           )}
 
@@ -1613,6 +2283,25 @@ export default function AdminView({ onBackToHome }) {
           KENT Admin Control Panel © 2026 · Powered by Kent RO Systems
         </footer>
       </main>
+
+      {/* Toast Notification Container */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl border shadow-xl backdrop-blur-md font-black text-xs select-none ${
+            toast.type === 'error'
+              ? 'bg-rose-50/90 text-rose-800 border-rose-100'
+              : toast.type === 'warning'
+              ? 'bg-amber-50/90 text-amber-800 border-amber-100'
+              : 'bg-emerald-50/90 text-emerald-800 border-emerald-100'
+          }`}>
+            {toast.type === 'error' && <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />}
+            {toast.type === 'warning' && <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />}
+            {toast.type === 'success' && <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />}
+            <span>{toast.message}</span>
+            <button onClick={() => setToast(null)} className="ml-2 hover:opacity-75 transition font-black text-slate-400 p-0.5 cursor-pointer">✕</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

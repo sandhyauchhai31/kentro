@@ -27,7 +27,7 @@ export default function CategoryView({
   const [selectedEnquiryProduct, setSelectedEnquiryProduct] = useState(null);
   const [enquiryName, setEnquiryName] = useState('');
   const [enquiryPhone, setEnquiryPhone] = useState('');
-  const [enquiryAddress, setEnquiryAddress] = useState('');
+  const [enquiryMessage, setEnquiryMessage] = useState('');
   const [enquirySuccess, setEnquirySuccess] = useState(false);
 
   // Sidebar Collapse states
@@ -745,6 +745,7 @@ export default function CategoryView({
                 setIsEnquiryModalOpen(false);
                 setSelectedEnquiryProduct(null);
                 setEnquirySuccess(false);
+                setEnquiryMessage('');
               }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 font-extrabold text-sm cursor-pointer"
             >
@@ -758,7 +759,7 @@ export default function CategoryView({
                   id: Date.now().toString(),
                   name: enquiryName,
                   phone: enquiryPhone,
-                  address: enquiryAddress,
+                  message: enquiryMessage,
                   productName: selectedEnquiryProduct.name,
                   productId: selectedEnquiryProduct.id,
                   productPrice: selectedEnquiryProduct.price,
@@ -812,14 +813,12 @@ export default function CategoryView({
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Address *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Enter delivery / installation address"
-                    value={enquiryAddress}
-                    onChange={(e) => setEnquiryAddress(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
+                  <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Message / Requirements</label>
+                  <textarea
+                    placeholder="Enter any specific requirements or message..."
+                    value={enquiryMessage}
+                    onChange={(e) => setEnquiryMessage(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold min-h-[80px] resize-y"
                   />
                 </div>
 
@@ -856,7 +855,7 @@ export default function CategoryView({
                     setEnquirySuccess(false);
                     setEnquiryName('');
                     setEnquiryPhone('');
-                    setEnquiryAddress('');
+                    setEnquiryMessage('');
                   }}
                   className="bg-[#0b3178] hover:bg-[#072457] text-white text-xs font-bold px-6 py-2.5 rounded-xl transition duration-150 cursor-pointer"
                 >

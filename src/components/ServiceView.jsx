@@ -157,7 +157,7 @@ export default function ServiceView() {
       </section>
 
       {/* Online Service Booking Form Section */}
-      <section className="max-w-6xl mx-auto px-4 md:px-8 mb-16 select-none text-left">
+      <section className="max-w-6xl mx-auto px-4 md:px-8 mt-16 mb-16 select-none text-left">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* Info Side */}

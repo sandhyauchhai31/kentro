@@ -70,8 +70,11 @@ export function getFullCatalog() {
     customProds.forEach(prod => {
       const sub = prod.subCategory;
       if (catalog[sub]) {
-        if (!catalog[sub].some(p => p.id === prod.id)) {
-          catalog[sub] = [prod, ...catalog[sub]]; // Prepend custom products
+        const idx = catalog[sub].findIndex(p => p.id === prod.id);
+        if (idx !== -1) {
+          catalog[sub][idx] = prod;
+        } else {
+          catalog[sub] = [prod, ...catalog[sub]];
         }
       } else {
         catalog[sub] = [prod];
