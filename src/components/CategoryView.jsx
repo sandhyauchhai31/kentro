@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Star, ShieldCheck, ShoppingCart, ChevronUp, ChevronDown, CheckCircle } from 'lucide-react';
+import { Star, ShieldCheck, ChevronUp, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getFullCatalog } from '../catalogData';
+import { addDocument, getDocuments } from '../services/firestoreService';
 
 export default function CategoryView({ 
   activeCategory, 
   activeSubCategory, 
   onCategoryChange, 
   onSubCategoryChange, 
-  onBackToHome, 
-  onAddToCart,
-  onBuyNow
+  onBackToHome
 }) {
   // Main Filter & Sort States
   const [sortBy, setSortBy] = useState('popularity'); // 'popularity' | 'price-asc' | 'price-desc' | 'alpha-asc' | 'alpha-desc'
@@ -29,6 +28,9 @@ export default function CategoryView({
   const [enquiryPhone, setEnquiryPhone] = useState('');
   const [enquiryMessage, setEnquiryMessage] = useState('');
   const [enquirySuccess, setEnquirySuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
   // Sidebar Collapse states
   const [isPriceExpanded, setIsPriceExpanded] = useState(true);
@@ -47,26 +49,59 @@ export default function CategoryView({
 
   const subCategoriesMap = {
     'Water Purifiers': ['RO Purifiers', 'Hydrogen Rich Water', 'UV Purifiers', 'Gravity Purifiers', 'Commercial Purifier'],
-    'Water Softeners': ['Bathroom Softeners', 'Washing Machine Softeners', 'Automatic Softeners'],
-    'Kitchen Appliances': ['Air Fryers', 'Cold Pressed Juicers', 'Bread Makers', 'Multi Cookers'],
-    'Home Appliances': ['Air Purifiers', 'Vacuum Cleaners', 'Vegetable Cleaners'],
-    'New Energy': ['Solar Panels', 'Solar Inverters']
+    'Water Softeners': ['KENT Autosoft', 'KENT Iron Removal Filters', 'KENT Sand Filters', 'KENT Bathroom Water Softener', 'KENT Pressure Boosting System'],
+    'Kitchen Appliances': ['Air Fryers', 'Induction Cooktop', 'Mixer Grinders', 'Hand Blenders', 'Electric Chopper'],
+    'Home Appliances': ['Air Purifiers', 'Vacuum Cleaners', 'Dew Humidifier', 'Steam Irons'],
+    'New Energy': ['Lithium Batteries', 'Hybrid Inverters']
   };
 
-  const [catalog, setCatalog] = useState(() => getFullCatalog());
+  const [catalog, setCatalog] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
   const currentProducts = catalog[activeSubCategory] || [];
 
-  // Update catalog when localStorage changes (e.g. from another tab/window)
+  const loadCatalogFromDb = async () => {
+    setIsLoading(true);
+    try {
+      const productsList = await getDocuments('products');
+      const grouped = {};
+      productsList.forEach(p => {
+        const sub = p.subCategory || 'RO Purifiers';
+        if (!grouped[sub]) grouped[sub] = [];
+        grouped[sub].push({
+          id: p.id,
+          name: p.productName,
+          price: p.price,
+          basePrice: p.discountPrice,
+          rating: p.rating || 4.8,
+          reviews: p.reviews || 100,
+          specs: p.specifications,
+          desc: p.description,
+          features: p.features || [],
+          image: p.imageURLs?.[0] || '',
+          brochure: p.brochureURL || '',
+          isFeatured: p.isFeatured || false,
+          subCategory: sub
+        });
+      });
+
+      // Fallback to local catalog if database lacks products for some subcategories
+      const localCatalog = getFullCatalog();
+      Object.keys(localCatalog).forEach(sub => {
+        if (!grouped[sub] || grouped[sub].length === 0) {
+          grouped[sub] = localCatalog[sub];
+        }
+      });
+
+      setCatalog(grouped);
+    } catch (err) {
+      console.error('Error loading products from DB:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'kentro-custom-products') {
-        setCatalog(getFullCatalog());
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
+    loadCatalogFromDb();
   }, []);
 
   // Reset max price boundary and clear filters on subcategory switch
@@ -193,56 +228,69 @@ export default function CategoryView({
     switch (type) {
       case 'purifier':
         return (
-          <div className="w-12 h-14 bg-slate-900 rounded shadow p-1 flex flex-col justify-between relative select-none">
-            <span className="text-[3px] text-blue-400 font-bold leading-none">KENT</span>
-            <div className="h-3 w-full bg-slate-800 rounded-xs flex items-center justify-center">
-              <div className="w-1 h-1 bg-orange-500 rounded-full" />
-            </div>
-            <div className="h-4 w-full bg-gradient-to-t from-blue-900/40 to-slate-850 rounded-xs" />
+          <div className="w-12 h-12 flex items-center justify-center select-none bg-white rounded-lg p-0.5 shadow-xs border border-slate-100/50">
+            <img 
+              src="/kent-sapphire-iot.png" 
+              alt="Water Purifiers" 
+              className="w-full h-full object-contain mix-blend-multiply" 
+            />
           </div>
         );
       case 'softener':
         return (
-          <div className="w-10 h-14 bg-slate-100 rounded border border-slate-200 p-0.5 flex flex-col justify-between select-none">
-            <div className="w-5 h-9 bg-blue-500 rounded-full mx-auto border border-blue-600 flex flex-col justify-around p-0.5">
-              <div className="w-full h-1 bg-white/20 rounded-full" />
-            </div>
-            <div className="h-1.5 w-full bg-slate-350 rounded-xs" />
+          <div className="w-12 h-12 flex items-center justify-center select-none bg-white rounded-lg p-0.5 shadow-xs border border-slate-100/50">
+            <img 
+              src="/water-softner/kent-auto-soft.webp" 
+              alt="Water Softeners" 
+              className="w-full h-full object-contain mix-blend-multiply" 
+            />
           </div>
         );
       case 'kitchen':
         return (
-          <div className="w-12 h-12 bg-slate-900 border border-slate-800 rounded-lg shadow p-1 flex flex-col justify-between items-center select-none">
-            <div className="w-3 h-0.5 bg-orange-500 rounded-full" />
-            <div className="w-7 h-7 bg-slate-800 rounded flex items-center justify-center">
-              <div className="w-4 h-4 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center">
-                <span className="text-[3px] text-orange-400">180°</span>
-              </div>
-            </div>
+          <div className="w-12 h-12 flex items-center justify-center select-none bg-white rounded-lg p-0.5 shadow-xs border border-slate-100/50">
+            <img 
+              src="/kitchen-appliancs/kent-digital-air-fryer-oven.webp" 
+              alt="Kitchen Appliances" 
+              className="w-full h-full object-contain mix-blend-multiply" 
+            />
           </div>
         );
       case 'home':
         return (
-          <div className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-full shadow flex items-center justify-center relative select-none">
-            <div className="w-7 h-7 rounded-full bg-[#008DDF] flex items-center justify-center text-white">
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
+          <div className="w-12 h-12 flex items-center justify-center select-none bg-white rounded-lg p-0.5 shadow-xs border border-slate-100/50">
+            <img 
+              src="/home-applicances/kent-roboklean-r1-robotic-vacuum-cleaner-1.webp" 
+              alt="Home Appliances" 
+              className="w-full h-full object-contain mix-blend-multiply" 
+            />
           </div>
         );
       case 'solar':
         return (
-          <div className="w-12 h-14 bg-blue-950 border border-blue-900 rounded p-0.5 grid grid-cols-3 gap-0.5 select-none">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-blue-900" />
-            ))}
+          <div className="w-12 h-12 flex items-center justify-center select-none bg-white rounded-lg p-0.5 shadow-xs border border-slate-100/50">
+            <img 
+              src="/new-energy/kent-li-battery-a6-1280-1.webp" 
+              alt="New Energy" 
+              className="w-full h-full object-contain mix-blend-multiply" 
+            />
           </div>
         );
       default:
         return <div className="w-8 h-10 bg-slate-200 rounded select-none" />;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#0b3178] rounded-full animate-spin" />
+          <p className="text-xs font-bold text-slate-500 tracking-wider uppercase">Loading Products...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 select-none">
@@ -382,7 +430,12 @@ export default function CategoryView({
 
             {isPriceExpanded && (
               <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="relative pt-2 pb-1 px-1">
+                <div className="relative py-2 px-1 flex items-center">
+                  <div className="absolute left-1.5 right-1.5 h-1 bg-slate-200 rounded-full pointer-events-none" />
+                  <div 
+                    className="absolute left-1.5 right-1.5 h-1 bg-brand-blue rounded-full pointer-events-none" 
+                    style={{ right: `${((50000 - maxPrice) / 50000) * 100}%` }} 
+                  />
                   <input 
                     type="range" 
                     min="0" 
@@ -390,9 +443,8 @@ export default function CategoryView({
                     step="500"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(parseInt(e.target.value))}
-                    className="w-full h-1.5 bg-brand-blue/20 rounded-lg appearance-none cursor-pointer accent-brand-blue focus:outline-none"
+                    className="w-full h-4 bg-transparent appearance-none cursor-pointer accent-brand-blue focus:outline-none relative z-10"
                   />
-                  <div className="absolute top-3.5 left-1.5 right-1.5 h-1 bg-brand-blue rounded-full pointer-events-none" style={{ right: `${((50000 - maxPrice) / 50000) * 100}%` }} />
                 </div>
 
                 <div className="flex items-center justify-between space-x-2">
@@ -700,30 +752,16 @@ export default function CategoryView({
                         </div>
                       </div>
 
-                      {/* Action buttons matching image layout side by side */}
-                      <div className="flex space-x-2.5 mt-2">
+                      {/* Action buttons */}
+                      <div className="mt-2">
                         <button 
                           onClick={() => {
                             setSelectedEnquiryProduct(prod);
                             setIsEnquiryModalOpen(true);
                           }}
-                          className="flex-1 bg-[#1a3673] hover:bg-[#0f2552] text-white text-xs font-bold py-3 px-4 rounded-full shadow-md transition duration-200 cursor-pointer"
+                          className="w-full bg-[#1a3673] hover:bg-[#0f2552] text-white text-xs font-bold py-3 px-4 rounded-full shadow-md transition duration-200 cursor-pointer text-center"
                         >
                           Go for Enquiry
-                        </button>
-                        
-                        <button 
-                          onClick={() => {
-                            onAddToCart({
-                              id: prod.id,
-                              name: prod.name,
-                              price: prod.price,
-                              color: prod.color ? prod.color[0] : 'White'
-                            });
-                          }}
-                          className="flex-1 border border-[#1a3673] hover:bg-[#1a3673]/5 text-[#1a3673] text-xs font-bold py-3 px-4 rounded-full transition duration-200 cursor-pointer text-center"
-                        >
-                          Add to Cart
                         </button>
                       </div>
 
@@ -753,25 +791,35 @@ export default function CategoryView({
             </button>
 
             {!enquirySuccess ? (
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
+                setPhoneError('');
+                setSubmitError('');
+
+                if (!/^[6-9]\d{9}$/.test(enquiryPhone.trim())) {
+                  setPhoneError('Please enter a valid 10-digit mobile number starting with 6-9.');
+                  return;
+                }
+
+                setIsSubmitting(true);
                 const newEnquiry = {
-                  id: Date.now().toString(),
-                  name: enquiryName,
-                  phone: enquiryPhone,
-                  message: enquiryMessage,
-                  productName: selectedEnquiryProduct.name,
-                  productId: selectedEnquiryProduct.id,
-                  productPrice: selectedEnquiryProduct.price,
-                  submittedAt: new Date().toLocaleString()
+                  customer: enquiryName.trim(),
+                  mobile: enquiryPhone.trim(),
+                  product: selectedEnquiryProduct.name,
+                  message: enquiryMessage.trim(),
+                  date: new Date().toLocaleString(),
+                  status: 'Pending'
                 };
+
                 try {
-                  const existing = JSON.parse(localStorage.getItem('kentro-enquiries') || '[]');
-                  localStorage.setItem('kentro-enquiries', JSON.stringify([...existing, newEnquiry]));
+                  await addDocument('productEnquiries', newEnquiry);
+                  setEnquirySuccess(true);
                 } catch (err) {
                   console.error(err);
+                  setSubmitError('A database connection error occurred. Please try again.');
+                } finally {
+                  setIsSubmitting(false);
                 }
-                setEnquirySuccess(true);
               }} className="space-y-4">
                 <h3 className="text-lg font-black text-[#091E42] tracking-tight">Product Enquiry</h3>
                 <p className="text-xs text-slate-500 font-semibold mb-2">
@@ -804,12 +852,19 @@ export default function CategoryView({
                   <input
                     type="tel"
                     required
-                    pattern="[0-9]{10}"
                     placeholder="10-digit mobile number"
                     value={enquiryPhone}
-                    onChange={(e) => setEnquiryPhone(e.target.value)}
+                    onChange={(e) => {
+                      setEnquiryPhone(e.target.value);
+                      setPhoneError('');
+                    }}
                     className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
                   />
+                  {phoneError && (
+                    <span className="text-[10px] text-red-500 font-semibold mt-1 block flex items-center gap-1">
+                      <AlertCircle size={11} /> {phoneError}
+                    </span>
+                  )}
                 </div>
 
                 <div>
@@ -832,11 +887,19 @@ export default function CategoryView({
                   />
                 </div>
 
+                {submitError && (
+                  <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-100 text-rose-750 text-[10px] font-bold px-3 py-2 rounded-lg mt-2">
+                    <AlertCircle size={13} />
+                    {submitError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-[#0b3178] hover:bg-[#072457] text-white py-3 rounded-xl font-bold text-[13px] shadow-md transition duration-200 cursor-pointer mt-2"
+                  disabled={isSubmitting}
+                  className="w-full bg-[#0b3178] hover:bg-[#072457] disabled:bg-slate-400 text-white py-3 rounded-xl font-bold text-[13px] shadow-md transition duration-200 cursor-pointer mt-2 flex items-center justify-center gap-2"
                 >
-                  Submit Enquiry Request
+                  {isSubmitting ? 'Submitting Enquiry...' : 'Submit Enquiry Request'}
                 </button>
               </form>
             ) : (

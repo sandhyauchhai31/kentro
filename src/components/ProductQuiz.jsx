@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { HelpCircle, RefreshCw, Check, ArrowRight, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function ProductQuiz({ onAddToCart, onDemoOpen }) {
+export default function ProductQuiz({ onDemoOpen }) {
   const [step, setStep] = useState(1);
   const [selections, setSelections] = useState({
     source: '',
@@ -264,16 +264,11 @@ export default function ProductQuiz({ onAddToCart, onDemoOpen }) {
                     <div className="flex space-x-2">
                       <button 
                         onClick={() => {
-                          onAddToCart({
-                            id: recommendation.id,
-                            name: recommendation.name,
-                            price: recommendation.price,
-                            color: 'White'
-                          });
+                          window.location.href = `/category?cat=Water%20Purifiers&sub=RO%20Purifiers`;
                         }}
                         className="bg-brand-blue hover:bg-brand-dark-blue text-white text-xs font-bold py-2.5 px-5 rounded-full shadow-md transition"
                       >
-                        Add to Cart
+                        Go for Enquiry
                       </button>
                       <button 
                         onClick={onDemoOpen}

@@ -33,7 +33,7 @@ export default function Footer() {
             <li><a href="#become-partner" className="hover:underline">Become a Trade Partner</a></li>
             <li><a href="#intl-products" className="hover:underline">International Products</a></li>
             <li><a href="#blogs" className="hover:underline">Blogs</a></li>
-            <li><Link to="/employee" className="hover:underline text-cyan-400 font-extrabold">Employee Portal</Link></li>
+            <li><Link to="/employee" target="_blank" className="hover:underline text-cyan-400 font-extrabold">Employee Portal</Link></li>
           </ul>
         </div>
 
@@ -48,10 +48,11 @@ export default function Footer() {
           </ul>
         </div>
 
-        {/* Column 4: Buy Now */}
+        {/* Column 4: Quick Links */}
         <div className="md:col-span-2 space-y-4">
-          <h4 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">Buy Now</h4>
+          <h4 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">Quick Links</h4>
           <ul className="space-y-3 text-sm font-bold text-white">
+            <li><Link to="/admin" target="_blank" className="hover:underline text-amber-400 font-extrabold">Admin Panel</Link></li>
             <li><a href="#terms" className="hover:underline">Terms & Conditions</a></li>
             <li><a href="#refund" className="hover:underline">Return & Refund Policy</a></li>
             <li><a href="#billing" className="hover:underline">Billing & Shipping</a></li>

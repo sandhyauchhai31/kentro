@@ -2,24 +2,36 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, ArrowRight, ShoppingBag, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { getFullCatalog } from '../catalogData';
+import { getDocuments } from '../services/firestoreService';
 
 export default function SearchModal({ isOpen, onClose }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
   const inputRef = useRef(null);
-  
-  // Get all products from the catalog
-  const catalog = getFullCatalog();
-  const allProducts = [];
-  Object.entries(catalog).forEach(([subCat, products]) => {
-    products.forEach(p => {
-      allProducts.push({
-        ...p,
-        subCategory: subCat
-      });
-    });
-  });
+
+  const categoriesKeys = ['RO Purifiers', 'Hydrogen Rich Water', 'UV Purifiers', 'Gravity Purifiers', 'Air Purifiers', 'Vacuum Cleaners', 'Dew Humidifier', 'Steam Irons', 'Lithium Batteries', 'Hybrid Inverters'];
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const list = await getDocuments('products');
+        setAllProducts(list.map(p => ({
+          id: p.id,
+          name: p.productName,
+          price: p.price,
+          basePrice: p.discountPrice,
+          specs: p.specifications || '',
+          desc: p.description || '',
+          features: p.features || [],
+          subCategory: p.subCategory || 'RO Purifiers'
+        })));
+      } catch (e) {
+        console.error('Error fetching search catalog:', e);
+      }
+    }
+    load();
+  }, []);
 
   // Focus input on mount / when modal opens
   useEffect(() => {
@@ -143,10 +155,10 @@ export default function SearchModal({ isOpen, onClose }) {
                   <div>
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Shop Categories</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {Object.keys(catalog).slice(0, 6).map((cat, i) => (
+                      {categoriesKeys.map((cat, i) => (
                         <Link
                           key={i}
-                          to={`/category?cat=${encodeURIComponent(cat === 'RO Purifiers' || cat === 'Hydrogen Rich Water' || cat === 'UV Purifiers' || cat === 'Gravity Purifiers' || cat === 'Commercial Purifier' ? 'Water Purifiers' : cat === 'Bathroom Softeners' || cat === 'Washing Machine Softeners' || cat === 'Automatic Softeners' ? 'Water Softeners' : cat === 'Air Fryers' || cat === 'Cold Pressed Juicers' || cat === 'Bread Makers' || cat === 'Multi Cookers' ? 'Kitchen Appliances' : 'Home Appliances')}&sub=${encodeURIComponent(cat)}`}
+                          to={`/category?cat=${encodeURIComponent(cat === 'RO Purifiers' || cat === 'Hydrogen Rich Water' || cat === 'UV Purifiers' || cat === 'Gravity Purifiers' || cat === 'Commercial Purifier' ? 'Water Purifiers' : ['KENT Autosoft', 'KENT Iron Removal Filters', 'KENT Sand Filters', 'KENT Bathroom Water Softener', 'KENT Pressure Boosting System'].includes(cat) ? 'Water Softeners' : ['Air Fryers', 'Induction Cooktop', 'Mixer Grinders', 'Hand Blenders', 'Electric Chopper'].includes(cat) ? 'Kitchen Appliances' : ['Solar Panels', 'Solar Inverters', 'Lithium Batteries', 'Hybrid Inverters'].includes(cat) ? 'New Energy' : 'Home Appliances')}&sub=${encodeURIComponent(cat)}`}
                           onClick={onClose}
                           className="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/50 hover:border-slate-300 transition flex items-center justify-between group"
                         >

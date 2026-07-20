@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { X, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { addDocument } from '../services/firestoreService';
 
-export default function BookDemoModal({ isOpen, onClose }) {
+export default function BookDemoModal({ isOpen, onClose, selectedProduct }) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -11,9 +12,19 @@ export default function BookDemoModal({ isOpen, onClose }) {
     message: '',
     agreeTerms: true
   });
+
+  React.useEffect(() => {
+    if (selectedProduct) {
+      setFormData(prev => ({
+        ...prev,
+        interestedIn: selectedProduct.name || (typeof selectedProduct === 'string' ? selectedProduct : 'RO Water Purifier')
+      }));
+    }
+  }, [selectedProduct]);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const validate = () => {
     let newErrors = {};
@@ -35,44 +46,38 @@ export default function BookDemoModal({ isOpen, onClose }) {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+    setSubmitError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setSubmitError('');
 
-    // Save to localStorage so admin panel can view it
     const newBooking = {
-      id: 'DEMO-' + Date.now(),
-      firstName: formData.firstName.trim(),
-      lastName:  formData.lastName.trim(),
-      name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
-      phone: formData.phone.trim(),
+      refId: 'DEMO-' + Math.floor(100000 + Math.random() * 900000),
+      customer: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+      mobile: formData.phone.trim(),
       interestedIn: formData.interestedIn,
       message: formData.message.trim(),
-      status: 'New',
       submittedAt: new Date().toLocaleString('en-IN', {
         day: '2-digit', month: 'short', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
-      })
+      }),
+      status: 'New'
     };
 
     try {
-      const existing = JSON.parse(localStorage.getItem('kentro-demo-bookings') || '[]');
-      existing.push(newBooking);
-      localStorage.setItem('kentro-demo-bookings', JSON.stringify(existing));
-      // notify admin panel if open in another tab
-      window.dispatchEvent(new Event('kentro-demo-bookings-updated'));
+      await addDocument('demoBookings', newBooking);
+      setIsSuccess(true);
     } catch (err) {
       console.error('Failed to save demo booking:', err);
-    }
-
-    setTimeout(() => {
+      setSubmitError('A database connection error occurred. Please try again.');
+    } finally {
       setIsSubmitting(false);
-      setIsSuccess(true);
-    }, 1200);
+    }
   };
 
   const handleReset = () => {
@@ -81,6 +86,7 @@ export default function BookDemoModal({ isOpen, onClose }) {
       interestedIn: 'RO Water Purifier', message: '', agreeTerms: true
     });
     setErrors({});
+    setSubmitError('');
     setIsSuccess(false);
     onClose();
   };
@@ -143,9 +149,25 @@ export default function BookDemoModal({ isOpen, onClose }) {
               ) : (
                 /* ── Form state ── */
                 <form onSubmit={handleSubmit} className="text-left font-sans">
-                  <h3 className="font-extrabold text-2xl md:text-3xl text-[#091E42] text-center mb-7 mt-2">
-                    Book Free Demo
+                  <h3 className="font-extrabold text-2xl md:text-3xl text-[#091E42] text-center mb-6 mt-2">
+                    {selectedProduct ? 'Product Enquiry Form' : 'Book Free Demo'}
                   </h3>
+
+                  {selectedProduct && (
+                    <div className="bg-[#f0f4f9] border border-[#d2e3f7] rounded-2xl p-3.5 mb-5 flex items-center space-x-3.5 shadow-xs">
+                      {selectedProduct.image && (
+                        <div className="w-12 h-12 bg-white rounded-xl p-1 flex items-center justify-center border border-slate-100 flex-shrink-0">
+                          <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-contain mix-blend-multiply" />
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase text-[#1a3673] tracking-wider block">Product Enquiry For</span>
+                        <h4 className="text-xs md:text-sm font-bold text-[#091E42] leading-tight">
+                          {selectedProduct.name || selectedProduct}
+                        </h4>
+                      </div>
+                    </div>
+                  )}
 
                   {/* First Name & Last Name */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -227,6 +249,12 @@ export default function BookDemoModal({ isOpen, onClose }) {
                       <span className="text-[10px] text-red-500 font-semibold flex items-center gap-1">
                         <AlertCircle size={11} />{errors.agreeTerms}
                       </span>
+                    )}
+                    {submitError && (
+                      <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-100 text-rose-750 text-[10px] font-bold px-3 py-2 rounded-lg w-full">
+                        <AlertCircle size={13} />
+                        {submitError}
+                      </div>
                     )}
                     <div className="flex justify-end w-full sm:w-auto shrink-0">
                       <button

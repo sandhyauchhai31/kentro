@@ -1,24 +1,37 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Your web app's Firebase configuration load from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyC9G9Vc7spwZVekWqZGAs6v82rFwqFP498",
-  authDomain: "project-1-d6c4a.firebaseapp.com",
-  projectId: "project-1-d6c4a",
-  storageBucket: "project-1-d6c4a.firebasestorage.app",
-  messagingSenderId: "628070285676",
-  appId: "1:628070285676:web:8f1a0c4596944e8e58f349",
-  measurementId: "G-8JXWT34F9X"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || undefined
 };
 
 // Initialize Firebase
+// console.log("Loaded Firebase Config:", firebaseConfig);
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+// Use databaseURL from config, env, or construct default using projectId
+const rtdbUrl = firebaseConfig.databaseURL || 
+  import.meta.env.VITE_FIREBASE_DATABASE_URL || 
+  `https://${firebaseConfig.projectId}-default-rtdb.firebaseio.com`;
+
+const rtdb = getDatabase(app, rtdbUrl);
 
 // Export the instances for use in the application
-export { app, analytics };
+export { app, analytics, auth, db, rtdb, storage };

@@ -43,6 +43,16 @@ import {
   Star,
 } from 'lucide-react';
 import { getFullCatalog } from '../catalogData';
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { 
+  addDocument, 
+  getDocuments, 
+  getDocumentById, 
+  updateDocument, 
+  deleteDocument, 
+  seedCatalogIfNeeded 
+} from '../services/firestoreService';
 
 // ─── Reusable input style ────────────────────────────────────────────────────
 const inputCls =
@@ -72,19 +82,17 @@ function NavItem({ icon: Icon, label, badge, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[13.5px] font-bold transition-all duration-150 cursor-pointer ${
-        active
+      className={`group w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[13.5px] font-bold transition-all duration-150 cursor-pointer ${active
           ? 'bg-[#1D4ED8] text-white shadow-lg shadow-blue-900/40'
           : 'text-slate-400 hover:bg-white/8 hover:text-white'
-      }`}
+        }`}
       style={!active ? { '--tw-bg-opacity': 1 } : {}}
     >
       <Icon size={17} className={active ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'} />
       <span className="flex-1 text-left">{label}</span>
       {badge !== undefined && (
-        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-          active ? 'bg-white/25 text-white' : 'bg-white/10 text-slate-400'
-        }`}>
+        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${active ? 'bg-white/25 text-white' : 'bg-white/10 text-slate-400'
+          }`}>
           {badge}
         </span>
       )}
@@ -95,11 +103,11 @@ function NavItem({ icon: Icon, label, badge, active, onClick }) {
 // ─── Stat card ────────────────────────────────────────────────────────────────
 function StatCard({ title, value, icon: Icon, color, sub }) {
   const colorMap = {
-    blue:    { bg: 'bg-blue-50',    text: 'text-[#1D4ED8]',   icon: 'text-[#1D4ED8]',   val: 'text-[#1D4ED8]' },
-    amber:   { bg: 'bg-amber-50',   text: 'text-amber-700',   icon: 'text-amber-600',   val: 'text-amber-700' },
+    blue: { bg: 'bg-blue-50', text: 'text-[#1D4ED8]', icon: 'text-[#1D4ED8]', val: 'text-[#1D4ED8]' },
+    amber: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'text-amber-600', val: 'text-amber-700' },
     emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'text-emerald-600', val: 'text-emerald-700' },
-    violet:  { bg: 'bg-violet-50',  text: 'text-violet-700',  icon: 'text-violet-600',  val: 'text-violet-700' },
-    rose:    { bg: 'bg-rose-50',    text: 'text-rose-700',    icon: 'text-rose-600',    val: 'text-rose-700' },
+    violet: { bg: 'bg-violet-50', text: 'text-violet-700', icon: 'text-violet-600', val: 'text-violet-700' },
+    rose: { bg: 'bg-rose-50', text: 'text-rose-700', icon: 'text-rose-600', val: 'text-rose-700' },
   };
   const c = colorMap[color] || colorMap.blue;
   return (
@@ -168,13 +176,28 @@ function DataTable({ headers, children }) {
 // ═════════════════════════════════════════════════════════════════════════════
 export default function AdminView({ onBackToHome }) {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(
-    () => sessionStorage.getItem('kentro-admin') === 'true'
-  );
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
   const [adminId, setAdminId] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
+
+  // ── Auth State Listener ───────────────────────────────────────────────────
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAdminLoggedIn(!!user);
+      setCurrentUser(user);
+      setIsAuthLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const userEmail = currentUser?.email || 'admin@kentro.in';
+  const userName = currentUser?.displayName || (currentUser?.email ? currentUser.email.split('@')[0] : 'Admin');
+  const capitalizedUserName = userName.charAt(0).toUpperCase() + userName.slice(1);
+  const userInitial = capitalizedUserName.charAt(0).toUpperCase() || 'A';
 
   // ── Navigation ────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('overview');
@@ -250,88 +273,153 @@ export default function AdminView({ onBackToHome }) {
 
   const [allProductsList, setAllProductsList] = useState([]);
   const [editingProductId, setEditingProductId] = useState(null);
+  const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
+  const [isSubmittingEmployee, setIsSubmittingEmployee] = useState(false);
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [isLoadingDb, setIsLoadingDb] = useState(true);
 
-  // ── Load catalog list ─────────────────────────────────────────────────────
-  useEffect(() => {
+  // We should declare reloaders for all lists
+  const reloadEmployees = async () => {
     try {
-      const catalog = getFullCatalog();
-      const list = [];
-      Object.values(catalog).forEach((arr) =>
-        arr.forEach((p) => { if (!list.includes(p.name)) list.push(p.name); })
-      );
-      setAllProductsList(list);
-    } catch (e) {
-      console.error('Error loading catalog list:', e);
-    }
-  }, [customProducts]);
+      const list = await getDocuments('employees');
+      const mapped = list.map(emp => ({
+        id: emp.id,
+        employeeId: emp.employeeId || emp.id,
+        name: emp.fullName || '',
+        mobile: emp.mobile || '',
+        email: emp.email || '',
+        address: emp.address || '',
+        loginId: emp.userID || '',
+        password: emp.password || '',
+        specialization: emp.specialization || 'General',
+        status: emp.status || 'Active'
+      }));
+      setEmployees(mapped);
+    } catch (e) { console.error(e); }
+  };
 
-  // ── Load / sync localStorage ──────────────────────────────────────────────
-  useEffect(() => {
-    const reloadBookings = () => {
-      try {
-        const s = localStorage.getItem('kentro-service-bookings');
-        if (s) setServiceBookings(JSON.parse(s));
-      } catch (e) { console.error(e); }
-    };
-
-    const reloadDemos = () => {
-      try {
-        const sd = localStorage.getItem('kentro-demo-bookings');
-        if (sd) setDemoBookings(JSON.parse(sd));
-      } catch (e) { console.error(e); }
-    };
-
+  const reloadOffers = async () => {
     try {
-      const s1 = localStorage.getItem('kentro-custom-products');
-      if (s1) setCustomProducts(JSON.parse(s1));
-      const s2 = localStorage.getItem('kentro-enquiries');
-      if (s2) setEnquiries(JSON.parse(s2));
-      reloadBookings();
-      reloadDemos();
-      const s4 = localStorage.getItem('kentro-employees');
-      if (s4) {
-        setEmployees(JSON.parse(s4));
-      } else {
-        const seed = [{
-          id: 'EMP-101', name: 'Rajesh Kumar', mobile: '9876543210',
-          email: 'rajesh@kentro.in', address: 'Sector 62, Noida, UP',
-          loginId: 'rajesh', password: 'password123'
-        }];
-        localStorage.setItem('kentro-employees', JSON.stringify(seed));
-        setEmployees(seed);
+      const list = await getDocuments('offers');
+      const mapped = list.map(off => ({
+        id: off.id,
+        code: off.code || '',
+        title: off.title || '',
+        description: off.description || '',
+        type: off.type || 'Percentage',
+        value: off.value || 0,
+        applicableTo: off.applicableTo || 'all',
+        status: off.status || 'Active'
+      }));
+      setOffers(mapped);
+    } catch (e) { console.error(e); }
+  };
+
+  const reloadDemos = async () => {
+    try {
+      const list = await getDocuments('demoBookings');
+      const mapped = list.map(d => ({
+        id: d.id,
+        refId: d.refId || d.id,
+        customer: d.customer || '',
+        mobile: d.mobile || '',
+        interestedIn: d.interestedIn || '',
+        message: d.message || '',
+        submittedAt: d.submittedAt || '',
+        status: d.status || 'New'
+      }));
+      setDemoBookings(mapped);
+    } catch (e) { console.error(e); }
+  };
+
+  const reloadEnquiries = async () => {
+    try {
+      const list = await getDocuments('productEnquiries');
+      const mapped = list.map(e => ({
+        id: e.id,
+        name: e.name || e.customerName || '',
+        phone: e.phone || '',
+        email: e.email || '',
+        message: e.message || '',
+        productName: e.productName || '',
+        productPrice: e.productPrice || 0,
+        status: e.status || 'Pending',
+        submittedAt: e.submittedAt || ''
+      }));
+      setEnquiries(mapped);
+    } catch (e) { console.error(e); }
+  };
+
+  const reloadServices = async () => {
+    try {
+      const list = await getDocuments('serviceRequests');
+      const mapped = list.map(b => ({
+        id: b.id,
+        name: b.customerName || b.name || '',
+        customerName: b.customerName || b.name || '',
+        phone: b.phone || '',
+        address: b.address || '',
+        pincode: b.pincode || b.deliveryDate || '',
+        serviceType: b.product || b.serviceType || '',
+        product: b.product || b.serviceType || '',
+        soldProduct: b.soldProduct || '',
+        deliveryDate: b.deliveryDate || '',
+        status: b.status || 'Pending',
+        assignedEmployeeId: b.assignedEmployeeId || '',
+        createdAt: b.createdAtDate || b.createdAt || '',
+        createdAtDate: b.createdAtDate || b.createdAt || ''
+      }));
+      setServiceBookings(mapped);
+    } catch (e) { console.error(e); }
+  };
+
+  const reloadProducts = async () => {
+    try {
+      const list = await getDocuments('products');
+      setCustomProducts(list);
+      
+      const namesList = [];
+      list.forEach((p) => {
+        if (p.productName && !namesList.includes(p.productName)) {
+          namesList.push(p.productName);
+        }
+      });
+      setAllProductsList(namesList);
+    } catch (e) { console.error(e); }
+  };
+
+  // Seed and load database only when admin is authenticated
+  useEffect(() => {
+    if (!isAdminLoggedIn) return;
+
+    async function initAdmin() {
+      setIsLoadingDb(true);
+      try {
+        await seedCatalogIfNeeded();
+        await Promise.all([
+          reloadEmployees(),
+          reloadOffers(),
+          reloadDemos(),
+          reloadEnquiries(),
+          reloadServices(),
+          reloadProducts()
+        ]);
+      } catch (err) {
+        console.error('Initialization error in AdminView:', err);
+      } finally {
+        setIsLoadingDb(false);
       }
-      const sOffers = localStorage.getItem('kentro-offers');
-      if (sOffers) setOffers(JSON.parse(sOffers));
-    } catch (e) { console.error('Error loading data:', e); }
-
-    const onChange = (e) => {
-      try {
-        if (e.key === 'kentro-custom-products')       setCustomProducts(e.newValue ? JSON.parse(e.newValue) : []);
-        else if (e.key === 'kentro-enquiries')         setEnquiries(e.newValue ? JSON.parse(e.newValue) : []);
-        else if (e.key === 'kentro-service-bookings')  setServiceBookings(e.newValue ? JSON.parse(e.newValue) : []);
-        else if (e.key === 'kentro-employees')         setEmployees(e.newValue ? JSON.parse(e.newValue) : []);
-        else if (e.key === 'kentro-demo-bookings')     setDemoBookings(e.newValue ? JSON.parse(e.newValue) : []);
-        else if (e.key === 'kentro-offers')            setOffers(e.newValue ? JSON.parse(e.newValue) : []);
-      } catch (err) { console.error(err); }
-    };
-
-    window.addEventListener('storage', onChange);
-    window.addEventListener('kentro-service-bookings-updated', reloadBookings);
-    window.addEventListener('kentro-demo-bookings-updated', reloadDemos);
-    return () => {
-      window.removeEventListener('storage', onChange);
-      window.removeEventListener('kentro-service-bookings-updated', reloadBookings);
-      window.removeEventListener('kentro-demo-bookings-updated', reloadDemos);
-    };
-  }, []);
+    }
+    initAdmin();
+  }, [isAdminLoggedIn]);
 
   // ── Category map ──────────────────────────────────────────────────────────
   const categorySubcategories = {
     'Water Purifiers': ['RO Purifiers', 'Hydrogen Rich Water', 'UV Purifiers', 'Gravity Purifiers', 'Commercial Purifier'],
-    'Water Softeners': ['Bathroom Softeners', 'Washing Machine Softeners', 'Automatic Softeners'],
-    'Kitchen Appliances': ['Air Fryers', 'Cold Pressed Juicers', 'Bread Makers', 'Multi Cookers'],
-    'Home Appliances': ['Air Purifiers', 'Vacuum Cleaners', 'Vegetable Cleaners'],
-    'New Energy': ['Solar Panels', 'Solar Inverters'],
+    'Water Softeners': ['KENT Autosoft', 'KENT Iron Removal Filters', 'KENT Sand Filters', 'KENT Bathroom Water Softener', 'KENT Pressure Boosting System'],
+    'Kitchen Appliances': ['Air Fryers', 'Induction Cooktop', 'Mixer Grinders', 'Hand Blenders', 'Electric Chopper'],
+    'Home Appliances': ['Air Purifiers', 'Vacuum Cleaners', 'Dew Humidifier', 'Steam Irons'],
+    'New Energy': ['Lithium Batteries', 'Hybrid Inverters'],
   };
 
   const handleCategoryChange = (e) => {
@@ -341,216 +429,276 @@ export default function AdminView({ onBackToHome }) {
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (adminId === 'admin' && adminPassword === 'admin123') {
-      sessionStorage.setItem('kentro-admin', 'true');
-      setIsAdminLoggedIn(true);
+    setLoginError('');
+    try {
+      const email = adminId.includes('@') ? adminId : `${adminId}@kentro.in`;
+      await signInWithEmailAndPassword(auth, email, adminPassword);
       setLoginError('');
-    } else {
-      setLoginError('Invalid credentials. Hint: admin / admin123');
+    } catch (err) {
+      console.error('Firebase authentication error:', err);
+      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setLoginError('Invalid credentials. Please verify your admin email and password.');
+      } else {
+        setLoginError(err.message || 'Authentication failed. Please try again.');
+      }
     }
   };
 
-  const handleAddProductSubmit = (e) => {
+  const handleAddProductSubmit = async (e) => {
     e.preventDefault();
     if (!prodId.trim() || !prodName.trim() || !price || !basePrice) {
       showToast('Please fill all required fields.', 'warning');
       return;
     }
 
-    const newProd = {
-      id: prodId.trim().toLowerCase().replace(/\s+/g, '-'),
-      name: prodName.trim(), price: parseFloat(price), basePrice: parseFloat(basePrice),
-      specs: specs.trim() || tech.trim(), desc: desc.trim(),
+    const prodData = {
+      productName: prodName.trim(),
+      categoryId: category.toLowerCase().replace(/\s+/g, '-'),
+      categoryName: category,
+      subCategory: subCategory,
+      description: desc.trim(),
+      price: parseFloat(price),
+      discountPrice: parseFloat(basePrice),
+      SKU: prodId.trim(),
+      stock: 10,
+      specifications: specs.trim() || tech.trim(),
       features: features ? features.split(',').map((f) => f.trim()) : [],
-      color: colors ? colors.split(',').map((c) => c.trim()) : ['White'],
-      installType, tech: tech.trim() || specs.trim(),
+      imageURLs: imagePreview || imageUrl.trim() ? [imagePreview || imageUrl.trim()] : [],
+      brochureURL: '',
+      isFeatured: roFeatures?.includes('Best Selling') || false,
+      colors: colors ? colors.split(',').map((c) => c.trim()) : ['White'],
+      installType: installType,
+      tech: tech.trim() || specs.trim(),
       roFeatures: roFeatures ? roFeatures.split(',').map((b) => b.trim()) : [],
-      category, subCategory, image: imagePreview || imageUrl.trim() || null,
-      warranty: warranty.trim() || null, guarantee: guarantee.trim() || null,
+      warranty: warranty.trim(),
+      guarantee: guarantee.trim()
     };
 
-    if (editingProductId) {
-      const exists = customProducts.some((p) => p.id === editingProductId);
-      const updated = exists
-        ? customProducts.map((p) => (p.id === editingProductId ? newProd : p))
-        : [...customProducts, newProd];
-      try {
-        localStorage.setItem('kentro-custom-products', JSON.stringify(updated));
-        setCustomProducts(updated);
-        setEditingProductId(null);
-        setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
-        setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
-        setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
-        if (fileInputRef.current) fileInputRef.current.value = '';
+    setIsSubmittingProduct(true);
+    try {
+      if (editingProductId) {
+        await updateDocument('products', editingProductId, prodData);
         showToast('Product updated successfully!');
+        setEditingProductId(null);
         setActiveTab('manage');
-      } catch (err) {
-        console.error(err);
-        showToast('Failed to update product — image may be too large.', 'error');
-      }
-    } else {
-      const updated = [...customProducts, newProd];
-      try {
-        localStorage.setItem('kentro-custom-products', JSON.stringify(updated));
-        setCustomProducts(updated);
-        setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
-        setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
-        setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
-        if (fileInputRef.current) fileInputRef.current.value = '';
+      } else {
+        await addDocument('products', prodData);
+        showToast('Product added successfully!');
         setFormSuccess(true);
         setTimeout(() => setFormSuccess(false), 3500);
-      } catch (err) {
-        console.error(err);
-        showToast('Failed to save — image may be too large.', 'error');
       }
+      // Reset form
+      setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
+      setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
+      setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      await reloadProducts();
+    } catch (err) {
+      console.error(err);
+      showToast('Database write failed.', 'error');
+    } finally {
+      setIsSubmittingProduct(false);
     }
   };
 
   const handleStartEditProduct = (p) => {
     setEditingProductId(p.id);
-    setProdId(p.id);
-    setProdName(p.name);
-    setPrice(p.price.toString());
-    setBasePrice(p.basePrice.toString());
-    setSpecs(p.specs || '');
+    setProdId(p.SKU || p.id);
+    setProdName(p.productName || p.name || '');
+    setPrice(p.price ? p.price.toString() : '');
+    setBasePrice(p.discountPrice ? p.discountPrice.toString() : (p.basePrice ? p.basePrice.toString() : ''));
+    setSpecs(p.specifications || p.specs || '');
     setInstallType(p.installType || 'Wall Mounted');
-    setDesc(p.desc || '');
+    setDesc(p.description || p.desc || '');
     setFeatures(p.features ? p.features.join(', ') : '');
-    setColors(p.color ? p.color.join(', ') : 'White');
-    setTech(p.tech || '');
+    setColors(p.colors ? p.colors.join(', ') : (p.color ? p.color.join(', ') : 'White'));
+    setTech(p.tech || p.specifications || '');
     setRoFeatures(p.roFeatures ? p.roFeatures.join(', ') : '');
-    setCategory(p.category || 'Water Purifiers');
+    setCategory(p.categoryName || p.category || 'Water Purifiers');
     setSubCategory(p.subCategory || '');
-    setImageUrl(p.image && p.image.startsWith('http') ? p.image : '');
-    setImagePreview(p.image || null);
-    setImageMode(p.image && p.image.startsWith('http') ? 'url' : 'upload');
+    
+    const pImage = p.imageURLs?.[0] || p.image || '';
+    setImageUrl(pImage.startsWith('http') ? pImage : '');
+    setImagePreview(pImage || null);
+    setImageMode(pImage.startsWith('http') ? 'url' : 'upload');
     setWarranty(p.warranty || '');
     setGuarantee(p.guarantee || '');
     setActiveTab('add');
   };
 
-  const handleCancelEditProduct = () => {
+  const resetProductForm = () => {
     setEditingProductId(null);
-    setProdId(''); setProdName(''); setPrice(''); setBasePrice(''); setSpecs('');
-    setDesc(''); setFeatures(''); setColors('White'); setTech(''); setRoFeatures('');
-    setImageUrl(''); setImagePreview(null); setImageMode('url'); setWarranty(''); setGuarantee('');
+    setCategory('Water Purifiers');
+    setSubCategory('RO Purifiers');
+    setProdId('');
+    setProdName('');
+    setPrice('');
+    setBasePrice('');
+    setSpecs('');
+    setDesc('');
+    setFeatures('');
+    setColors('White');
+    setInstallType('Wall Mounted');
+    setTech('');
+    setRoFeatures('');
+    setImageUrl('');
+    setImagePreview(null);
+    setImageMode('url');
+    setWarranty('');
+    setGuarantee('');
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleCancelEditProduct = () => {
+    resetProductForm();
     setActiveTab('manage');
   };
 
-  const handleDeleteProduct = (id) => {
-    const u = customProducts.filter((p) => p.id !== id);
-    setCustomProducts(u);
-    localStorage.setItem('kentro-custom-products', JSON.stringify(u));
+  const handleDeleteProduct = async (id) => {
+    try {
+      await deleteDocument('products', id);
+      showToast('Product deleted successfully.');
+      await reloadProducts();
+    } catch (e) {
+      console.error(e);
+      showToast('Delete operation failed.', 'error');
+    }
   };
 
-  const handleDeleteEnquiry = (id) => {
-    const u = enquiries.filter((e) => e.id !== id);
-    setEnquiries(u);
-    localStorage.setItem('kentro-enquiries', JSON.stringify(u));
+  const handleDeleteEnquiry = async (id) => {
+    try {
+      await deleteDocument('productEnquiries', id);
+      showToast('Enquiry deleted successfully.');
+      await reloadEnquiries();
+    } catch (e) {
+      console.error(e);
+      showToast('Delete operation failed.', 'error');
+    }
   };
 
-  const handleUpdateEnquiryStatus = (id, newStatus) => {
-    const u = enquiries.map((e) => (e.id === id ? { ...e, status: newStatus } : e));
-    setEnquiries(u);
-    localStorage.setItem('kentro-enquiries', JSON.stringify(u));
+  const handleUpdateEnquiryStatus = async (id, newStatus) => {
+    try {
+      await updateDocument('productEnquiries', id, { status: newStatus });
+      showToast('Status updated successfully.');
+      await reloadEnquiries();
+    } catch (e) {
+      console.error(e);
+      showToast('Update failed.', 'error');
+    }
   };
 
-  const handleDeleteBooking = (id) => {
-    const u = serviceBookings.filter((b) => b.id !== id);
-    setServiceBookings(u);
-    localStorage.setItem('kentro-service-bookings', JSON.stringify(u));
-    window.dispatchEvent(new Event('kentro-service-bookings-updated'));
+  const handleDeleteBooking = async (id) => {
+    try {
+      await deleteDocument('serviceRequests', id);
+      showToast('Service request deleted successfully.');
+      await reloadServices();
+    } catch (e) {
+      console.error(e);
+      showToast('Delete operation failed.', 'error');
+    }
   };
 
-  const handleUpdateBookingStatus = (id, newStatus) => {
-    const u = serviceBookings.map((b) => (b.id === id ? { ...b, status: newStatus } : b));
-    setServiceBookings(u);
-    localStorage.setItem('kentro-service-bookings', JSON.stringify(u));
-    window.dispatchEvent(new Event('kentro-service-bookings-updated'));
+  const handleUpdateBookingStatus = async (id, newStatus) => {
+    try {
+      await updateDocument('serviceRequests', id, { status: newStatus });
+      showToast('Status updated successfully.');
+      await reloadServices();
+    } catch (e) {
+      console.error(e);
+      showToast('Update failed.', 'error');
+    }
   };
 
-  const handleUpdateServiceAssignment = (id, fieldName, value) => {
-    const u = serviceBookings.map((b) => (b.id === id ? { ...b, [fieldName]: value } : b));
-    setServiceBookings(u);
-    localStorage.setItem('kentro-service-bookings', JSON.stringify(u));
-    window.dispatchEvent(new Event('kentro-service-bookings-updated'));
+  const handleUpdateServiceAssignment = async (id, fieldName, value) => {
+    try {
+      await updateDocument('serviceRequests', id, { [fieldName]: value });
+      showToast('Assignment updated successfully.');
+      await reloadServices();
+    } catch (e) {
+      console.error(e);
+      showToast('Assignment failed.', 'error');
+    }
   };
 
-  const handleAddEmployee = (e) => {
+  const handleAddEmployee = async (e) => {
     e.preventDefault();
     if (!empName.trim() || !empLoginId.trim() || !empPassword.trim()) {
       alert('Name, Login ID and Password are required.');
       return;
     }
 
-    if (editingEmployeeId) {
-      // Update Mode
-      if (employees.some((emp) => emp.id !== editingEmployeeId && emp.loginId.toLowerCase() === empLoginId.trim().toLowerCase())) {
-        alert('Login ID already taken by another technician.');
-        return;
-      }
-      const updated = employees.map(emp => {
-        if (emp.id === editingEmployeeId) {
-          return {
-            ...emp,
-            name: empName.trim(),
-            mobile: empMobile.trim(),
-            email: empEmail.trim(),
-            address: empAddress.trim(),
-            loginId: empLoginId.trim(),
-            password: empPassword.trim(),
-            specialization: empSpecialization,
-            status: empStatus,
-          };
+    const empData = {
+      fullName: empName.trim(),
+      mobile: empMobile.trim(),
+      email: empEmail.trim(),
+      address: empAddress.trim(),
+      userID: empLoginId.trim(),
+      password: empPassword.trim(),
+      specialization: empSpecialization,
+      status: empStatus
+    };
+
+    setIsSubmittingEmployee(true);
+    try {
+      if (editingEmployeeId) {
+        if (employees.some((emp) => emp.id !== editingEmployeeId && emp.loginId.toLowerCase() === empLoginId.trim().toLowerCase())) {
+          alert('Login ID already taken by another technician.');
+          return;
         }
-        return emp;
-      });
-      setEmployees(updated);
-      localStorage.setItem('kentro-employees', JSON.stringify(updated));
-      setEditingEmployeeId(null);
-    } else {
-      // Create Mode
-      if (employees.some((emp) => emp.loginId.toLowerCase() === empLoginId.trim().toLowerCase())) {
-        alert('Login ID already taken.');
-        return;
+        await updateDocument('employees', editingEmployeeId, empData);
+        setEditingEmployeeId(null);
+        showToast('Technician updated successfully!');
+      } else {
+        if (employees.some((emp) => emp.loginId.toLowerCase() === empLoginId.trim().toLowerCase())) {
+          alert('Login ID already taken.');
+          return;
+        }
+        const newEmpId = 'EMP-' + Math.floor(100 + Math.random() * 900);
+        await addDocument('employees', {
+          ...empData,
+          employeeId: newEmpId
+        });
+        showToast('Technician added successfully!');
+        setEmpSuccess(true);
+        setTimeout(() => setEmpSuccess(false), 3550);
       }
-      const newEmp = {
-        id: 'EMP-' + Math.floor(100 + Math.random() * 900),
-        name: empName.trim(), mobile: empMobile.trim(), email: empEmail.trim(),
-        address: empAddress.trim(), loginId: empLoginId.trim(), password: empPassword.trim(),
-        specialization: empSpecialization, status: empStatus,
-      };
-      const u = [...employees, newEmp];
-      setEmployees(u);
-      localStorage.setItem('kentro-employees', JSON.stringify(u));
+      setEmpName(''); setEmpAddress(''); setEmpMobile(''); setEmpEmail('');
+      setEmpLoginId(''); setEmpPassword(''); setEmpSpecialization('General'); setEmpStatus('Active');
+      setIsAddEmployeeModalOpen(false);
+      await reloadEmployees();
+    } catch (err) {
+      console.error(err);
+      showToast('Database write failed.', 'error');
+    } finally {
+      setIsSubmittingEmployee(false);
     }
-
-    setEmpName(''); setEmpAddress(''); setEmpMobile(''); setEmpEmail('');
-    setEmpLoginId(''); setEmpPassword(''); setEmpSpecialization('General'); setEmpStatus('Active');
-    setEmpSuccess(true);
-    setIsAddEmployeeModalOpen(false);
-    setTimeout(() => setEmpSuccess(false), 3550);
   };
 
-  const handleDeleteEmployee = (id) => {
-    const u = employees.filter((emp) => emp.id !== id);
-    setEmployees(u);
-    localStorage.setItem('kentro-employees', JSON.stringify(u));
+  const handleDeleteEmployee = async (id) => {
+    try {
+      await deleteDocument('employees', id);
+      showToast('Technician deleted successfully.');
+      await reloadEmployees();
+    } catch (e) {
+      console.error(e);
+      showToast('Delete operation failed.', 'error');
+    }
   };
 
-  const handleToggleEmployeeStatus = (id) => {
-    const updated = employees.map(emp => {
-      if (emp.id === id) {
-        const nextStatus = emp.status === 'Active' ? 'Inactive' : 'Active';
-        return { ...emp, status: nextStatus };
-      }
-      return emp;
-    });
-    setEmployees(updated);
-    localStorage.setItem('kentro-employees', JSON.stringify(updated));
+  const handleToggleEmployeeStatus = async (id) => {
+    const emp = employees.find(e => e.id === id);
+    if (!emp) return;
+    const nextStatus = emp.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await updateDocument('employees', id, { status: nextStatus });
+      await reloadEmployees();
+      showToast('Technician status toggled.');
+    } catch (e) {
+      console.error(e);
+      showToast('Failed to update status.', 'error');
+    }
   };
 
   const handleStartEditEmployee = (emp) => {
@@ -566,88 +714,75 @@ export default function AdminView({ onBackToHome }) {
     setIsAddEmployeeModalOpen(true);
   };
 
-  // ── Offer Handlers ────────────────────────────────────────────────────────
-  const handleAddOffer = (e) => {
+  const handleAddOffer = async (e) => {
     e.preventDefault();
     if (!offerCode.trim() || !offerTitle.trim() || !offerValue) {
       alert('Code, Title and Value are required.');
       return;
     }
 
-    if (editingOfferId) {
-      // Update Mode
-      const updated = offers.map(off => {
-        if (off.id === editingOfferId) {
-          return {
-            ...off,
-            code: offerCode.trim().toUpperCase(),
-            title: offerTitle.trim(),
-            description: offerDescription.trim(),
-            type: offerType,
-            value: Number(offerValue),
-            applicableTo: offerApplicableTo,
-            status: offerStatus,
-          };
+    const offerData = {
+      code: offerCode.trim().toUpperCase(),
+      title: offerTitle.trim(),
+      description: offerDescription.trim(),
+      type: offerType,
+      value: Number(offerValue),
+      applicableTo: offerApplicableTo,
+      status: offerStatus
+    };
+
+    setIsSubmittingOffer(true);
+    try {
+      if (editingOfferId) {
+        await updateDocument('offers', editingOfferId, offerData);
+        setEditingOfferId(null);
+        showToast('Promo offer updated successfully!');
+      } else {
+        if (offers.some((off) => off.code.toLowerCase() === offerCode.trim().toLowerCase())) {
+          alert('An offer with this code already exists.');
+          return;
         }
-        return off;
-      });
-      setOffers(updated);
-      localStorage.setItem('kentro-offers', JSON.stringify(updated));
-      window.dispatchEvent(new Event('storage'));
-      setEditingOfferId(null);
-    } else {
-      // Create Mode
-      if (offers.some((off) => off.code.toLowerCase() === offerCode.trim().toLowerCase())) {
-        alert('An offer with this code already exists.');
-        return;
+        await addDocument('offers', offerData);
+        showToast('Promo offer added successfully!');
+        setOfferSuccess(true);
+        setTimeout(() => setOfferSuccess(false), 3500);
       }
-      const newOffer = {
-        id: 'OFF-' + Math.floor(100 + Math.random() * 900),
-        code: offerCode.trim().toUpperCase(),
-        title: offerTitle.trim(),
-        description: offerDescription.trim(),
-        type: offerType,
-        value: Number(offerValue),
-        applicableTo: offerApplicableTo,
-        status: offerStatus,
-      };
-      const u = [...offers, newOffer];
-      setOffers(u);
-      localStorage.setItem('kentro-offers', JSON.stringify(u));
-      window.dispatchEvent(new Event('storage'));
+      setOfferCode(''); setOfferTitle(''); setOfferDescription('');
+      setOfferType('Percentage'); setOfferValue(''); setOfferApplicableTo('all');
+      setOfferStatus('Active');
+      setIsAddOfferModalOpen(false);
+      await reloadOffers();
+    } catch (err) {
+      console.error(err);
+      showToast('Database write failed.', 'error');
+    } finally {
+      setIsSubmittingOffer(false);
     }
-
-    // Reset Form
-    setOfferCode('');
-    setOfferTitle('');
-    setOfferDescription('');
-    setOfferType('Percentage');
-    setOfferValue('');
-    setOfferApplicableTo('all');
-    setOfferStatus('Active');
-    setOfferSuccess(true);
-    setIsAddOfferModalOpen(false);
-    setTimeout(() => setOfferSuccess(false), 3500);
   };
 
-  const handleDeleteOffer = (id) => {
-    const u = offers.filter((off) => off.id !== id);
-    setOffers(u);
-    localStorage.setItem('kentro-offers', JSON.stringify(u));
-    window.dispatchEvent(new Event('storage'));
+  const handleDeleteOffer = async (id) => {
+    try {
+      await deleteDocument('offers', id);
+      showToast('Promo offer deleted successfully.');
+      await reloadOffers();
+    } catch (e) {
+      console.error(e);
+      showToast('Delete operation failed.', 'error');
+    }
   };
 
-  const handleToggleOfferStatus = (id) => {
-    const updated = offers.map(off => {
-      if (off.id === id) {
-        const nextStatus = off.status === 'Active' ? 'Inactive' : 'Active';
-        return { ...off, status: nextStatus };
-      }
-      return off;
-    });
-    setOffers(updated);
-    localStorage.setItem('kentro-offers', JSON.stringify(updated));
-    window.dispatchEvent(new Event('storage'));
+  const handleToggleOfferStatus = async (id) => {
+    const off = offers.find(o => o.id === id);
+    if (!off) return;
+    const nextStatus = off.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await updateDocument('offers', id, { status: nextStatus });
+      await reloadOffers();
+      showToast('Offer status updated.');
+    } catch (e) {
+      console.error(e);
+      showToast('Failed to toggle status.', 'error');
+    }
   };
 
   const handleStartEditOffer = (off) => {
@@ -662,33 +797,64 @@ export default function AdminView({ onBackToHome }) {
     setIsAddOfferModalOpen(true);
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('kentro-admin');
-    setIsAdminLoggedIn(false);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('Firebase sign out error:', err);
+    }
   };
 
   const totalProductsCount = customProducts.length;
   const countByCategory = customProducts.reduce((acc, curr) => {
-    acc[curr.category] = (acc[curr.category] || 0) + 1;
+    const cat = curr.categoryName || curr.category || 'Water Purifiers';
+    acc[cat] = (acc[cat] || 0) + 1;
     return acc;
   }, {});
   const pendingBookings = serviceBookings.filter((b) => b.status === 'Pending').length;
 
-  const handleDeleteDemoBooking = (id) => {
-    const u = demoBookings.filter((d) => d.id !== id);
-    setDemoBookings(u);
-    localStorage.setItem('kentro-demo-bookings', JSON.stringify(u));
+  const handleDeleteDemoBooking = async (id) => {
+    try {
+      await deleteDocument('demoBookings', id);
+      showToast('Demo request deleted successfully.');
+      await reloadDemos();
+    } catch (e) {
+      console.error(e);
+      showToast('Delete operation failed.', 'error');
+    }
   };
 
-  const handleUpdateDemoStatus = (id, newStatus) => {
-    const u = demoBookings.map((d) => (d.id === id ? { ...d, status: newStatus } : d));
-    setDemoBookings(u);
-    localStorage.setItem('kentro-demo-bookings', JSON.stringify(u));
+  const handleUpdateDemoStatus = async (id, newStatus) => {
+    try {
+      await updateDocument('demoBookings', id, { status: newStatus });
+      showToast('Status updated successfully.');
+      await reloadDemos();
+    } catch (e) {
+      console.error(e);
+      showToast('Update failed.', 'error');
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────
   // LOGIN SCREEN
   // ─────────────────────────────────────────────────────────────────────────
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#0F172A] via-[#1E3A5F] to-[#0F172A] flex items-center justify-center p-4 font-sans relative overflow-hidden">
+        {/* Background decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-3xl" />
+        </div>
+        <div className="flex flex-col items-center gap-4 relative z-10 text-white select-none">
+          <RefreshCw className="animate-spin text-[#3B82F6]" size={36} />
+          <p className="text-sm font-bold tracking-wider text-slate-400 uppercase">Verifying Authorization...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAdminLoggedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#0F172A] via-[#1E3A5F] to-[#0F172A] flex items-center justify-center p-4 font-sans relative overflow-hidden">
@@ -706,7 +872,7 @@ export default function AdminView({ onBackToHome }) {
             className="mb-8 flex items-center gap-2 text-slate-400 hover:text-white text-sm font-bold transition-colors duration-200 cursor-pointer"
           >
             <ArrowLeft size={16} />
-            Back to Storefront
+            Back to website
           </button>
 
           {/* Card */}
@@ -726,13 +892,13 @@ export default function AdminView({ onBackToHome }) {
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2">
-                  Admin ID
+                  Admin Email / ID
                 </label>
                 <input
                   type="text"
                   value={adminId}
                   onChange={(e) => setAdminId(e.target.value)}
-                  placeholder="Enter admin ID"
+                  placeholder="Enter admin email or ID"
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:border-[#3B82F6] focus:bg-white/10 focus:outline-none text-[13.5px] font-semibold text-white placeholder-slate-500 transition-all"
                   required
                 />
@@ -789,15 +955,26 @@ export default function AdminView({ onBackToHome }) {
   // DASHBOARD
   // ─────────────────────────────────────────────────────────────────────────
   const navItems = [
-    { id: 'overview',   label: 'Dashboard',         icon: LayoutDashboard },
-    { id: 'add',        label: 'Add Product',        icon: PlusCircle },
-    { id: 'manage',     label: 'Products',           icon: Package,        badge: totalProductsCount },
-    { id: 'offers',     label: 'Offers',             icon: Tag,            badge: offers.length },
-    { id: 'demo',       label: 'Demo Bookings',      icon: ClipboardList,  badge: demoBookings.length },
-    { id: 'enquiries',  label: 'Product Enquiries',  icon: Mail,           badge: enquiries.length },
-    { id: 'services',   label: 'Service Requests',   icon: Wrench,         badge: serviceBookings.length },
-    { id: 'employees',  label: 'Employees',          icon: Users,          badge: employees.length },
+    { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
+    // { id: 'add', label: 'Add Product', icon: PlusCircle },
+    { id: 'manage', label: 'Products', icon: Package, badge: totalProductsCount },
+    { id: 'offers', label: 'Offers', icon: Tag, badge: offers.length },
+    { id: 'demo', label: 'Demo Bookings', icon: ClipboardList, badge: demoBookings.length },
+    { id: 'enquiries', label: 'Product Enquiries', icon: Mail, badge: enquiries.length },
+    { id: 'services', label: 'Service Requests', icon: Wrench, badge: serviceBookings.length },
+    { id: 'employees', label: 'Employees', icon: Users, badge: employees.length },
   ];
+
+  if (isLoadingDb) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#2563EB] rounded-full animate-spin" />
+          <p className="text-xs font-bold text-slate-500 tracking-wider uppercase">Loading Dashboard Data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] flex font-sans text-slate-800 select-none" style={{ fontFamily: 'inherit' }}>
@@ -830,7 +1007,12 @@ export default function AdminView({ onBackToHome }) {
               label={item.label}
               badge={item.badge}
               active={activeTab === item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.id === 'add') {
+                  resetProductForm();
+                }
+                setActiveTab(item.id);
+              }}
             />
           ))}
 
@@ -844,7 +1026,7 @@ export default function AdminView({ onBackToHome }) {
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(148,163,184,0.8)'; }}
             >
               <ExternalLink size={15} style={{ color: 'rgba(100,116,139,0.8)' }} />
-              View Storefront
+              View Website
             </button>
           </div>
         </nav>
@@ -853,11 +1035,11 @@ export default function AdminView({ onBackToHome }) {
         <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-2" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg,#1D4ED8,#60A5FA)' }}>
-              <span className="text-white font-black text-xs">A</span>
+              <span className="text-white font-black text-xs">{userInitial}</span>
             </div>
             <div className="min-w-0">
-              <p className="text-[12px] font-black text-white leading-none">Admin</p>
-              <p className="text-[10px] font-semibold mt-0.5 truncate" style={{ color: 'rgba(148,163,184,0.7)' }}>admin@kentro.in</p>
+              <p className="text-[12px] font-black text-white leading-none">{capitalizedUserName}</p>
+              <p className="text-[10px] font-semibold mt-0.5 truncate" style={{ color: 'rgba(148,163,184,0.7)' }}>{userEmail}</p>
             </div>
           </div>
           <button
@@ -887,19 +1069,6 @@ export default function AdminView({ onBackToHome }) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {pendingBookings > 0 && (
-              <div className="relative">
-                <div className="w-9 h-9 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-center text-amber-600">
-                  <Bell size={16} />
-                </div>
-                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
-                  {pendingBookings}
-                </span>
-              </div>
-            )}
-            <div className="w-9 h-9 bg-gradient-to-br from-[#1D4ED8] to-[#60A5FA] rounded-xl flex items-center justify-center text-white font-black text-sm shadow-md shadow-blue-200">
-              A
-            </div>
           </div>
         </header>
 
@@ -1016,11 +1185,21 @@ export default function AdminView({ onBackToHome }) {
 
           {/* ── Add Product ────────────────────────────────────────────────── */}
           {activeTab === 'add' && (
-            <div className="max-w-4xl">
-              <SectionHeader 
-                title={editingProductId ? "Edit Product" : "Add New Product"} 
-                subtitle={editingProductId ? `Modify details for product: ${prodName}` : "Publish a new product into the live storefront catalog."} 
-              />
+            <div className="w-full">
+              <div className="flex items-start justify-between gap-4">
+                <SectionHeader
+                  title={editingProductId ? "Edit Product" : "Add New Product"}
+                  subtitle={editingProductId ? `Modify details for product: ${prodName}` : "Publish a new product into the live website catalog."}
+                />
+                <button
+                  type="button"
+                  onClick={handleCancelEditProduct}
+                  className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-250 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer shadow-xs whitespace-nowrap"
+                >
+                  <ArrowLeft size={14} />
+                  Back to Products
+                </button>
+              </div>
 
               {formSuccess && (
                 <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[13px] font-extrabold px-5 py-4 rounded-2xl mb-6 shadow-sm">
@@ -1215,16 +1394,33 @@ export default function AdminView({ onBackToHome }) {
           {activeTab === 'manage' && (
             <div>
               {(() => {
-                const catalog = getFullCatalog();
-                const allProducts = [];
-                for (const [subCat, products] of Object.entries(catalog)) {
-                  products.forEach((p) => {
-                    allProducts.push({
-                      ...p,
-                      subCategory: subCat,
-                    });
-                  });
-                }
+                const allProducts = customProducts.length > 0 
+                  ? customProducts.map((p) => ({
+                      id: p.id,
+                      name: p.productName || p.name,
+                      price: p.price,
+                      basePrice: p.discountPrice || p.basePrice || p.price,
+                      rating: p.rating || 4.5,
+                      reviews: p.reviews || 0,
+                      specs: p.specifications || p.specs || '',
+                      desc: p.description || p.desc || '',
+                      features: p.features || [],
+                      image: p.imageURLs?.[0] || p.image || '',
+                      subCategory: p.subCategory,
+                    }))
+                  : (() => {
+                      const catalog = getFullCatalog();
+                      const list = [];
+                      for (const [subCat, products] of Object.entries(catalog)) {
+                        products.forEach((p) => {
+                          list.push({
+                            ...p,
+                            subCategory: subCat,
+                          });
+                        });
+                      }
+                      return list;
+                    })();
 
                 // Filter products based on selectedCategory
                 const filteredProducts = allProducts.filter((p) => {
@@ -1235,16 +1431,18 @@ export default function AdminView({ onBackToHome }) {
                       'UV Purifiers',
                       'Gravity Purifiers',
                       'Commercial Purifier',
-                      'Bathroom Softeners',
-                      'Washing Machine Softeners',
-                      'Automatic Softeners',
+                      'KENT Autosoft',
+                      'KENT Iron Removal Filters',
+                      'KENT Sand Filters',
+                      'KENT Bathroom Water Softener',
+                      'KENT Pressure Boosting System',
                     ].includes(p.subCategory);
                   }
                   if (selectedCategory === 'Air Purifiers') {
                     return ['Air Purifiers'].includes(p.subCategory);
                   }
                   if (selectedCategory === 'Kitchen Appliances') {
-                    return ['Air Fryers', 'Cold Pressed Juicers', 'Bread Makers', 'Multi Cookers'].includes(p.subCategory);
+                    return ['Air Fryers', 'Induction Cooktop', 'Mixer Grinders', 'Hand Blenders', 'Electric Chopper'].includes(p.subCategory);
                   }
                   return true;
                 });
@@ -1271,20 +1469,29 @@ export default function AdminView({ onBackToHome }) {
                           {filteredProducts.length} products listed
                         </p>
                       </div>
-                      <div className="flex flex-wrap gap-2 select-none">
+                      <div className="flex flex-wrap items-center gap-2 select-none">
                         {categoryPills.map((cat) => (
                           <button
                             key={cat}
                             onClick={() => setSelectedCategory(cat)}
-                            className={`px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer ${
-                              selectedCategory === cat
+                            className={`px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer ${selectedCategory === cat
                                 ? 'bg-blue-600 text-white shadow-sm'
                                 : 'bg-white text-slate-650 border border-slate-200 hover:bg-slate-50'
-                            }`}
+                              }`}
                           >
                             {cat}
                           </button>
                         ))}
+                        <button
+                          onClick={() => {
+                            resetProductForm();
+                            setActiveTab('add');
+                          }}
+                          className="flex items-center gap-1.5 bg-gradient-to-r from-[#1D4ED8] to-[#3B82F6] hover:from-[#1E40AF] hover:to-[#2563EB] text-white px-5 py-2.5 rounded-xl text-xs font-black transition cursor-pointer shadow-md shadow-blue-200 md:ml-2"
+                        >
+                          <Plus size={14} />
+                          Add Product
+                        </button>
                       </div>
                     </div>
 
@@ -1293,7 +1500,7 @@ export default function AdminView({ onBackToHome }) {
                         {filteredProducts.map((p) => {
                           const isCustom = customProducts.some((cp) => cp.id === p.id);
                           const discountPct = p.basePrice && p.price ? Math.round(((p.basePrice - p.price) / p.basePrice) * 100) : 0;
-                          
+
                           // Determine dynamic category label display
                           let catDisplay = 'Water Purifiers';
                           if (p.subCategory && p.subCategory.includes('Air')) catDisplay = 'Air Purifiers';
@@ -1303,7 +1510,7 @@ export default function AdminView({ onBackToHome }) {
 
                           return (
                             <div key={p.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between relative text-left">
-                              
+
                               {/* Top Section with Image */}
                               <div>
                                 <div className="w-full h-48 bg-slate-50 rounded-2xl overflow-hidden flex items-center justify-center p-4 relative border border-slate-100/50">
@@ -1374,15 +1581,13 @@ export default function AdminView({ onBackToHome }) {
                                   >
                                     <Pencil size={14} />
                                   </button>
-                                  {isCustom && (
-                                    <button
-                                      onClick={() => handleDeleteProduct(p.id)}
-                                      className="text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition cursor-pointer border border-rose-100 shrink-0"
-                                      title="Delete custom product"
-                                    >
-                                      <Trash2 size={15} />
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => handleDeleteProduct(p.id)}
+                                    className="text-rose-500 hover:bg-rose-50 p-2 rounded-xl transition cursor-pointer border border-rose-100 shrink-0"
+                                    title="Delete product"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
                                   <a
                                     href={`/products/${p.id}`}
                                     target="_blank"
@@ -1404,7 +1609,10 @@ export default function AdminView({ onBackToHome }) {
                           icon={Package}
                           message="No products found in this category."
                           action="Add a custom product"
-                          onAction={() => setActiveTab('add')}
+                          onAction={() => {
+                            resetProductForm();
+                            setActiveTab('add');
+                          }}
                         />
                       </div>
                     )}
@@ -1418,27 +1626,26 @@ export default function AdminView({ onBackToHome }) {
           {activeTab === 'enquiries' && (
             <div>
               <SectionHeader title="Customer Enquiries" subtitle="Lead enquiries submitted by customers via the product pages." />
-               {/* Status summary */}
+              {/* Status summary */}
               {enquiries.length > 0 && (
                 <div className="flex gap-3 mb-6 flex-wrap select-none">
                   {[
-                    { label: 'All',         color: 'bg-slate-100 text-slate-700 border-slate-300', value: 'all' },
-                    { label: 'Pending',     color: 'bg-blue-50 text-blue-700 border-blue-200', value: 'Pending' },
-                    { label: 'Contacted',   color: 'bg-amber-50 text-amber-700 border-amber-200', value: 'Contacted' },
-                    { label: 'Closed',      color: 'bg-emerald-50 text-emerald-700 border-emerald-200', value: 'Closed' },
+                    { label: 'All', color: 'bg-slate-100 text-slate-700 border-slate-300', value: 'all' },
+                    { label: 'Pending', color: 'bg-blue-50 text-blue-700 border-blue-200', value: 'Pending' },
+                    { label: 'Contacted', color: 'bg-amber-50 text-amber-700 border-amber-200', value: 'Contacted' },
+                    { label: 'Closed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', value: 'Closed' },
                   ].map(({ label, color, value }) => {
                     const count = value === 'all' ? enquiries.length : enquiries.filter((e) => (e.status || 'Pending') === value).length;
                     const isActive = enquiryStatusFilter === value;
-                    
+
                     return (
                       <button
                         key={label}
                         onClick={() => setEnquiryStatusFilter(value)}
-                        className={`flex items-center gap-2 px-5 py-2 rounded-full border text-[12px] font-black transition cursor-pointer ${color} ${
-                          isActive 
-                            ? 'ring-2 ring-offset-2 ring-blue-500 opacity-100 scale-102 shadow-xs' 
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full border text-[12px] font-black transition cursor-pointer ${color} ${isActive
+                            ? 'ring-2 ring-offset-2 ring-blue-500 opacity-100 scale-102 shadow-xs'
                             : 'opacity-50 hover:opacity-85'
-                        }`}
+                          }`}
                       >
                         <span>{label}</span>
                         <span className="font-extrabold">{count}</span>
@@ -1487,11 +1694,10 @@ export default function AdminView({ onBackToHome }) {
                             <select
                               value={e.status || 'Pending'}
                               onChange={(el) => handleUpdateEnquiryStatus(e.id, el.target.value)}
-                              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${
-                                (e.status || 'Pending') === 'Pending' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                : e.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              }`}
+                              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${(e.status || 'Pending') === 'Pending' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : e.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}
                             >
                               <option>Pending</option>
                               <option>Contacted</option>
@@ -1544,9 +1750,9 @@ export default function AdminView({ onBackToHome }) {
                 {serviceBookings.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
                     {[
-                      { label: 'Pending',  color: 'bg-amber-50 text-amber-700 border-amber-200' },
+                      { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200' },
                       { label: 'Finished', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-                      { label: 'Success',  color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                      { label: 'Success', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
                     ].map(({ label, color }) => {
                       const count = serviceBookings.filter((b) => b.status === label).length;
                       return (
@@ -1561,51 +1767,50 @@ export default function AdminView({ onBackToHome }) {
               </div>
 
               {serviceBookings.length > 0 ? (
-                <div className="space-y-4 text-left">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
                   {serviceBookings.map((b) => {
                     const assignedEmp = employees.find(e => e.id === b.assignedEmployeeId);
                     return (
-                      <div key={b.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col xl:flex-row xl:items-center justify-between gap-5 animate-in fade-in duration-200">
+                      <div key={b.id} className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between gap-5 animate-in fade-in duration-200">
 
-                        {/* Ref ID & Status */}
-                        <div className="min-w-[180px]">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-[10px] font-black text-[#1D4ED8] bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-lg tracking-wide">{b.id}</span>
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${
-                              b.status === 'Pending'  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}>
-                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${
-                                b.status === 'Pending' ? 'bg-amber-500' : b.status === 'Finished' ? 'bg-indigo-500' : 'bg-emerald-500'
-                              }`} />
+                        {/* Top: Ref ID, Status, Service Type */}
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <span className="text-[10px] font-black text-[#1D4ED8] bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-lg tracking-wide">{b.bookingId || b.id}</span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${b.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              }`}>
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${b.status === 'Pending' ? 'bg-amber-500' : b.status === 'Finished' ? 'bg-indigo-500' : 'bg-emerald-500'
+                                }`} />
                               {b.status}
                             </span>
                           </div>
-                          <h4 className="font-extrabold text-slate-800 text-[14px] leading-tight">{b.name}</h4>
-                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{b.createdAt}</p>
+
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="font-extrabold text-slate-800 text-[15px] leading-tight">{b.name}</h4>
+                            <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide shrink-0">
+                              {b.serviceType}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-semibold mt-1">{b.createdAt}</p>
                         </div>
 
                         {/* Contact details */}
-                        <div className="flex flex-col gap-1 text-[12px] text-slate-655 font-semibold min-w-[210px] flex-1">
+                        <div className="flex flex-col gap-1.5 text-[12.5px] text-slate-600 font-semibold border-t border-slate-100 pt-3">
                           <div className="flex items-center gap-2">
                             <Phone size={12} className="text-slate-400 shrink-0" />
                             <span>{b.phone}</span>
                           </div>
-                          <div className="flex items-start gap-2 text-[11px] text-slate-400 font-semibold">
-                            <MapPin size={12} className="text-slate-400 shrink-0 mt-0.5" />
-                            <span className="truncate max-w-[170px]" title={b.address}>{b.pincode ? `${b.pincode} – ` : ''}{b.address}</span>
-                          </div>
-                          <div className="pt-0.5">
-                            <span className="bg-blue-50 text-[#1D4ED8] border border-blue-100 rounded-lg px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wide">
-                              {b.serviceType}
-                            </span>
+                          <div className="flex items-start gap-2 text-[11.5px] text-slate-500">
+                            <MapPin size={13} className="text-slate-400 shrink-0 mt-0.5" />
+                            <span className="line-clamp-2" title={b.address}>{b.pincode ? `${b.pincode} – ` : ''}{b.address}</span>
                           </div>
                         </div>
 
-                        {/* Product / Date / Status Controls */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-[340px]">
-                          <div>
+                        {/* Controls (Product, Delivery Date, Status, Assign Tech) */}
+                        <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+                          <div className="col-span-2">
                             <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Product</label>
                             <select
                               value={b.soldProduct || ''}
@@ -1630,53 +1835,56 @@ export default function AdminView({ onBackToHome }) {
                             <select
                               value={b.status}
                               onChange={(e) => handleUpdateBookingStatus(b.id, e.target.value)}
-                              className={`w-full px-2.5 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider focus:outline-none cursor-pointer ${
-                                b.status === 'Pending'  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              }`}
+                              className={`w-full px-2.5 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider focus:outline-none cursor-pointer ${b.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : b.status === 'Finished' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                }`}
                             >
                               <option>Pending</option>
                               <option>Finished</option>
                               <option>Success</option>
                             </select>
                           </div>
+                          <div className="col-span-2">
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Assign Technician</label>
+                            <select
+                              value={b.assignedEmployeeId || ''}
+                              onChange={(e) => handleUpdateServiceAssignment(b.id, 'assignedEmployeeId', e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] cursor-pointer"
+                            >
+                              <option value="">Unassigned</option>
+                              {employees.map((emp) => (
+                                <option key={emp.id} value={emp.id}>{emp.name} ({emp.specialization || 'General'})</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
 
-                        {/* Assign Tech Controls */}
-                        <div className="min-w-[180px]">
-                          <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Assign Technician</label>
-                          <select
-                            value={b.assignedEmployeeId || ''}
-                            onChange={(e) => handleUpdateServiceAssignment(b.id, 'assignedEmployeeId', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-[#F8FAFC] border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:outline-none focus:border-[#1D4ED8] cursor-pointer"
-                          >
-                            <option value="">Unassigned</option>
-                            {employees.map((emp) => (
-                              <option key={emp.id} value={emp.id}>{emp.name} ({emp.specialization || 'General'})</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Right Actions & Technician Badge */}
-                        <div className="flex flex-row xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 shrink-0 pl-0 xl:pl-4 xl:border-l xl:border-slate-50 min-w-[140px]">
-                          {assignedEmp ? (
-                            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-2.5 py-1.5">
-                              <div className="w-5 h-5 rounded-full bg-blue-200 flex items-center justify-center text-[9px] font-black text-blue-700">
-                                {assignedEmp.name.charAt(0)}
+                        {/* Footer: Assigned Tech & Delete Action */}
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1">
+                          <div>
+                            <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Technician</span>
+                            {assignedEmp ? (
+                              <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 rounded-xl px-2.5 py-1">
+                                <div className="w-4 h-4 rounded-full bg-blue-200 flex items-center justify-center text-[8px] font-black text-blue-700">
+                                  {assignedEmp.name.charAt(0)}
+                                </div>
+                                <span className="text-[10px] font-bold text-blue-700">{assignedEmp.name}</span>
                               </div>
-                              <span className="text-[10px] font-bold text-blue-700">{assignedEmp.name}</span>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-400 italic">Unassigned</span>
-                          )}
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-400 italic">Unassigned</span>
+                            )}
+                          </div>
+
                           <button
-                            onClick={() => handleDeleteServiceBooking(b.id)}
-                            className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                            onClick={() => handleDeleteBooking(b.id)}
+                            className="text-slate-400 hover:text-rose-500 p-2 hover:bg-rose-50 rounded-xl transition cursor-pointer mt-3"
+                            title="Delete service request"
                           >
                             <Trash2 size={16} />
                           </button>
                         </div>
+
                       </div>
                     );
                   })}
@@ -1781,11 +1989,10 @@ export default function AdminView({ onBackToHome }) {
 
                         {/* Status & Actions */}
                         <div className="flex flex-row xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 shrink-0 pl-0 xl:pl-4 xl:border-l xl:border-slate-50 min-w-[120px]">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border ${
-                            emp.status === 'Active'
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border ${emp.status === 'Active'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                               : 'bg-rose-50 text-rose-605 border-rose-100'
-                          }`}>
+                            }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${emp.status === 'Active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                             {emp.status || 'Active'}
                           </span>
@@ -1807,7 +2014,7 @@ export default function AdminView({ onBackToHome }) {
                             </button>
                             <button
                               onClick={() => handleDeleteEmployee(emp.id)}
-                              disabled={emp.id === 'EMP-101'}
+                              disabled={emp.employeeId === 'EMP-101'}
                               className="hover:text-rose-500 transition cursor-pointer p-1.5 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
                               title="Delete"
                             >
@@ -1893,13 +2100,12 @@ export default function AdminView({ onBackToHome }) {
                                 key={s}
                                 type="button"
                                 onClick={() => setEmpStatus(s)}
-                                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl text-[12px] font-black border transition cursor-pointer ${
-                                  empStatus === s
+                                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl text-[12px] font-black border transition cursor-pointer ${empStatus === s
                                     ? s === 'Active'
                                       ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-100'
                                       : 'bg-rose-500 text-white border-rose-500 shadow-md shadow-rose-100'
                                     : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                                }`}
+                                  }`}
                               >
                                 {s}
                               </button>
@@ -1940,10 +2146,7 @@ export default function AdminView({ onBackToHome }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => {
-                      const s = localStorage.getItem('kentro-offers');
-                      if (s) setOffers(JSON.parse(s));
-                    }}
+                    onClick={reloadOffers}
                     className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-650 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold transition cursor-pointer shadow-xs"
                   >
                     <RefreshCw size={13} className="text-slate-400" />
@@ -1971,7 +2174,7 @@ export default function AdminView({ onBackToHome }) {
                 <div className="space-y-4 text-left animate-in fade-in duration-200">
                   {offers.map((off) => (
                     <div key={off.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col xl:flex-row xl:items-center justify-between gap-5 relative overflow-hidden">
-                      
+
                       {/* Left Block: Code & Title & Description */}
                       <div className="flex items-start gap-4 min-w-[320px] flex-1">
                         <div className="bg-blue-50 text-[#1D4ED8] border border-blue-100 px-3.5 py-2 rounded-xl text-[13px] font-mono font-black tracking-wider uppercase shrink-0">
@@ -2003,11 +2206,10 @@ export default function AdminView({ onBackToHome }) {
 
                       {/* Right Block: Status & Actions */}
                       <div className="flex flex-row xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 shrink-0 pl-0 xl:pl-4 xl:border-l xl:border-slate-50 min-w-[140px]">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border ${
-                          off.status === 'Active'
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border ${off.status === 'Active'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                             : 'bg-rose-50 text-rose-600 border-rose-100'
-                        }`}>
+                          }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${off.status === 'Active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                           {off.status}
                         </span>
@@ -2127,13 +2329,12 @@ export default function AdminView({ onBackToHome }) {
                               key={s}
                               type="button"
                               onClick={() => setOfferStatus(s)}
-                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl text-[12px] font-black border transition cursor-pointer ${
-                                offerStatus === s
+                              className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl text-[12px] font-black border transition cursor-pointer ${offerStatus === s
                                   ? s === 'Active'
                                     ? 'bg-emerald-500 text-white border-emerald-500 shadow-md shadow-emerald-100'
                                     : 'bg-rose-50 text-white border-rose-500 shadow-md shadow-rose-100'
                                   : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
-                              }`}
+                                }`}
                             >
                               {s}
                             </button>
@@ -2155,31 +2356,30 @@ export default function AdminView({ onBackToHome }) {
           {/* ── Demo Bookings ─────────────────────────────────────────────── */}
           {activeTab === 'demo' && (
             <div>
-              <SectionHeader title="Demo Bookings" subtitle="Free demo requests submitted via the 'Book a Demo' form on the storefront." />
+              <SectionHeader title="Demo Bookings" subtitle="Free demo requests submitted via the 'Book a Demo' form on the website." />
 
               {/* Status summary */}
               {demoBookings.length > 0 && (
                 <div className="flex gap-3 mb-6 flex-wrap select-none">
                   {[
-                    { label: 'All',         color: 'bg-slate-100 text-slate-700 border-slate-300', value: 'all' },
-                    { label: 'New',         color: 'bg-blue-50 text-blue-700 border-blue-200', value: 'New' },
-                    { label: 'Contacted',   color: 'bg-amber-50 text-amber-700 border-amber-200', value: 'Contacted' },
-                    { label: 'Scheduled',   color: 'bg-indigo-50 text-indigo-700 border-indigo-200', value: 'Scheduled' },
-                    { label: 'Completed',   color: 'bg-emerald-50 text-emerald-700 border-emerald-200', value: 'Completed' },
-                    { label: 'Cancelled',   color: 'bg-rose-50 text-rose-700 border-rose-200', value: 'Cancelled' },
+                    { label: 'All', color: 'bg-slate-100 text-slate-700 border-slate-300', value: 'all' },
+                    { label: 'New', color: 'bg-blue-50 text-blue-700 border-blue-200', value: 'New' },
+                    { label: 'Contacted', color: 'bg-amber-50 text-amber-700 border-amber-200', value: 'Contacted' },
+                    { label: 'Scheduled', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', value: 'Scheduled' },
+                    { label: 'Completed', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', value: 'Completed' },
+                    { label: 'Cancelled', color: 'bg-rose-50 text-rose-700 border-rose-200', value: 'Cancelled' },
                   ].map(({ label, color, value }) => {
                     const count = value === 'all' ? demoBookings.length : demoBookings.filter((d) => (d.status || 'New') === value).length;
                     const isActive = demoStatusFilter === value;
-                    
+
                     return (
                       <button
                         key={label}
                         onClick={() => setDemoStatusFilter(value)}
-                        className={`flex items-center gap-2 px-5 py-2 rounded-full border text-[12px] font-black transition cursor-pointer ${color} ${
-                          isActive 
-                            ? 'ring-2 ring-offset-2 ring-blue-500 opacity-100 scale-102 shadow-xs' 
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full border text-[12px] font-black transition cursor-pointer ${color} ${isActive
+                            ? 'ring-2 ring-offset-2 ring-blue-500 opacity-100 scale-102 shadow-xs'
                             : 'opacity-50 hover:opacity-85'
-                        }`}
+                          }`}
                       >
                         <span>{label}</span>
                         <span className="font-extrabold">{count}</span>
@@ -2228,13 +2428,12 @@ export default function AdminView({ onBackToHome }) {
                             <select
                               value={d.status || 'New'}
                               onChange={(e) => handleUpdateDemoStatus(d.id, e.target.value)}
-                              className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${
-                                d.status === 'New'       ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                : d.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : d.status === 'Scheduled' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                : d.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border-rose-200'
-                              }`}
+                              className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer ${d.status === 'New' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : d.status === 'Contacted' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : d.status === 'Scheduled' ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                      : d.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}
                             >
                               <option>New</option>
                               <option>Contacted</option>
@@ -2287,13 +2486,12 @@ export default function AdminView({ onBackToHome }) {
       {/* Toast Notification Container */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-[9999] animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl border shadow-xl backdrop-blur-md font-black text-xs select-none ${
-            toast.type === 'error'
+          <div className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl border shadow-xl backdrop-blur-md font-black text-xs select-none ${toast.type === 'error'
               ? 'bg-rose-50/90 text-rose-800 border-rose-100'
               : toast.type === 'warning'
-              ? 'bg-amber-50/90 text-amber-800 border-amber-100'
-              : 'bg-emerald-50/90 text-emerald-800 border-emerald-100'
-          }`}>
+                ? 'bg-amber-50/90 text-amber-800 border-amber-100'
+                : 'bg-emerald-50/90 text-emerald-800 border-emerald-100'
+            }`}>
             {toast.type === 'error' && <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />}
             {toast.type === 'warning' && <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />}
             {toast.type === 'success' && <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Phone, Mail, Clock, Search, Settings, CheckCircle } from 'lucide-react';
+import { Phone, Mail, Clock, Search, Settings, CheckCircle, AlertCircle } from 'lucide-react';
+import { addDocument } from '../services/firestoreService';
 
 export default function ServiceView() {
   const [serviceName, setServiceName] = useState('');
@@ -9,6 +10,9 @@ export default function ServiceView() {
   const [serviceAddress, setServiceAddress] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingId, setBookingId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
   return (
     <div className="bg-[#f4f7fc] min-h-screen pb-20 select-none font-sans text-left relative">
@@ -199,23 +203,32 @@ export default function ServiceView() {
           {/* Form Side */}
           <div className="lg:col-span-7 bg-white border border-slate-100 p-6 md:p-8 rounded-3xl shadow-xs">
             {!bookingSuccess ? (
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
+                setPhoneError('');
+                setSubmitError('');
+
+                if (!/^[6-9]\d{9}$/.test(servicePhone.trim())) {
+                  setPhoneError('Please enter a valid 10-digit mobile number starting with 6-9.');
+                  return;
+                }
+
+                setIsSubmitting(true);
                 const newId = 'SR-' + Math.floor(100000 + Math.random() * 900000);
                 const newBooking = {
                   id: newId,
-                  name: serviceName.trim(),
+                  customerName: serviceName.trim(),
                   phone: servicePhone.trim(),
-                  pincode: servicePin.trim(),
-                  serviceType: serviceType,
                   address: serviceAddress.trim(),
+                  product: serviceType,
+                  deliveryDate: servicePin.trim(), // mapping PIN to deliveryDate
                   status: 'Pending',
-                  createdAt: new Date().toLocaleString()
+                  assignTechnician: 'Unassigned',
+                  createdAtDate: new Date().toLocaleString()
                 };
+
                 try {
-                  const existing = JSON.parse(localStorage.getItem('kentro-service-bookings') || '[]');
-                  localStorage.setItem('kentro-service-bookings', JSON.stringify([...existing, newBooking]));
-                  window.dispatchEvent(new Event('kentro-service-bookings-updated'));
+                  await addDocument('serviceRequests', newBooking);
                   setBookingId(newId);
                   setBookingSuccess(true);
                   setServiceName('');
@@ -224,6 +237,9 @@ export default function ServiceView() {
                   setServiceAddress('');
                 } catch (err) {
                   console.error(err);
+                  setSubmitError('A database connection error occurred. Please try again.');
+                } finally {
+                  setIsSubmitting(false);
                 }
               }} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -243,12 +259,19 @@ export default function ServiceView() {
                     <input
                       type="tel"
                       required
-                      pattern="[0-9]{10}"
                       placeholder="10-digit mobile"
                       value={servicePhone}
-                      onChange={(e) => setServicePhone(e.target.value)}
+                      onChange={(e) => {
+                        setServicePhone(e.target.value);
+                        setPhoneError('');
+                      }}
                       className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-250 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
                     />
+                    {phoneError && (
+                      <span className="text-[10px] text-red-500 font-semibold mt-1 block flex items-center gap-1">
+                        <AlertCircle size={11} /> {phoneError}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -292,11 +315,19 @@ export default function ServiceView() {
                   />
                 </div>
 
+                {submitError && (
+                  <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-100 text-rose-750 text-[10px] font-bold px-3 py-2 rounded-lg">
+                    <AlertCircle size={13} />
+                    {submitError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-[#0b3178] hover:bg-[#072457] text-white py-3 rounded-xl font-bold text-[13px] shadow-md transition duration-200 cursor-pointer mt-2"
+                  disabled={isSubmitting}
+                  className="w-full bg-[#0b3178] hover:bg-[#072457] disabled:bg-slate-400 text-white py-3 rounded-xl font-bold text-[13px] shadow-md transition duration-200 cursor-pointer mt-2 flex items-center justify-center gap-2"
                 >
-                  Book Service Request
+                  {isSubmitting ? 'Booking Service...' : 'Book Service Request'}
                 </button>
               </form>
             ) : (

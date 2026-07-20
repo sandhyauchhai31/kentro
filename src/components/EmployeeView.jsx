@@ -1,24 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Key, 
-  UserCheck, 
-  ShieldAlert, 
-  LogOut, 
-  CheckCircle, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  Wrench, 
-  Search, 
-  LayoutDashboard, 
+import {
+  ArrowLeft,
+  Key,
+  UserCheck,
+  ShieldAlert,
+  LogOut,
+  CheckCircle,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar,
+  Wrench,
+  Search,
+  LayoutDashboard,
   User,
   CheckCircle2,
   Clock,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getDocuments, updateDocument } from '../services/firestoreService';
 
 export default function EmployeeView({ onBackToHome }) {
   // Session states
@@ -34,81 +36,95 @@ export default function EmployeeView({ onBackToHome }) {
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
 
   // Service bookings & tasks
   const [serviceBookings, setServiceBookings] = useState([]);
-  
+
   // Tab state: 'tasks' | 'profile'
   const [activeTab, setActiveTab] = useState('tasks');
 
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Sync state from localStorage
+  const reloadBookings = async () => {
+    try {
+      const list = await getDocuments('serviceRequests');
+      const mapped = list.map(b => ({
+        id: b.id,
+        bookingId: b.customId || b.id || '',
+        name: b.customerName || b.name || '',
+        customerName: b.customerName || b.name || '',
+        phone: b.phone || '',
+        address: b.address || '',
+        product: b.product || b.serviceType || '',
+        deliveryDate: b.deliveryDate || '',
+        status: b.status || 'Pending',
+        assignedEmployeeId: b.assignedEmployeeId || '',
+        createdAt: b.createdAtDate || b.createdAt || '',
+        createdAtDate: b.createdAtDate || b.createdAt || ''
+      }));
+      setServiceBookings(mapped);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Sync state from Firestore
   useEffect(() => {
-    const reloadBookings = () => {
-      try {
-        const storedBookings = localStorage.getItem('kentro-service-bookings');
-        if (storedBookings) {
-          setServiceBookings(JSON.parse(storedBookings));
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
-
-    reloadBookings();
-
-    const handleStorageChange = (e) => {
-      if (e.key === 'kentro-service-bookings') {
-        setServiceBookings(e.newValue ? JSON.parse(e.newValue) : []);
-      }
-      if (e.key === 'kentro-employees' && employeeUser) {
-        // sync currently logged-in employee if details are updated in admin
-        const freshEmps = e.newValue ? JSON.parse(e.newValue) : [];
-        const currentFresh = freshEmps.find(emp => emp.id === employeeUser.id);
-        if (currentFresh) {
-          sessionStorage.setItem('kentro-employee-logged-in', JSON.stringify(currentFresh));
-          setEmployeeUser(currentFresh);
-        }
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('kentro-service-bookings-updated', reloadBookings);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('kentro-service-bookings-updated', reloadBookings);
-    };
+    if (employeeUser) {
+      reloadBookings();
+    }
   }, [employeeUser]);
 
   // Login handler
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     if (!loginId.trim() || !password.trim()) {
       setLoginError('Please enter both ID and password.');
       return;
     }
 
+    setIsSubmittingLogin(true);
+    setLoginError('');
+
     try {
-      const storedEmployees = JSON.parse(localStorage.getItem('kentro-employees') || '[]');
-      const match = storedEmployees.find(
+      const list = await getDocuments('employees');
+      const mapped = list.map(emp => ({
+        id: emp.id,
+        employeeId: emp.employeeId || emp.id,
+        name: emp.fullName || '',
+        mobile: emp.mobile || '',
+        email: emp.email || '',
+        address: emp.address || '',
+        loginId: emp.userID || '',
+        password: emp.password || '',
+        specialization: emp.specialization || 'General',
+        status: emp.status || 'Active'
+      }));
+
+      const match = mapped.find(
         emp => emp.loginId.toLowerCase() === loginId.trim().toLowerCase() && emp.password === password.trim()
       );
 
       if (match) {
-        sessionStorage.setItem('kentro-employee-logged-in', JSON.stringify(match));
-        setEmployeeUser(match);
-        setLoginError('');
-        setLoginId('');
-        setPassword('');
+        if (match.status !== 'Active') {
+          setLoginError('Your employee account is suspended. Contact Administrator.');
+        } else {
+          sessionStorage.setItem('kentro-employee-logged-in', JSON.stringify(match));
+          setEmployeeUser(match);
+          setLoginError('');
+          setLoginId('');
+          setPassword('');
+        }
       } else {
         setLoginError('Invalid Employee Login ID or Password.');
       }
     } catch (err) {
       console.error(err);
       setLoginError('Failed to access database.');
+    } finally {
+      setIsSubmittingLogin(false);
     }
   };
 
@@ -119,13 +135,14 @@ export default function EmployeeView({ onBackToHome }) {
   };
 
   // Update single task status (Pending, Finished, Success)
-  const handleUpdateStatus = (taskId, newStatus) => {
-    const updatedBookings = serviceBookings.map(b => 
-      b.id === taskId ? { ...b, status: newStatus } : b
-    );
-    setServiceBookings(updatedBookings);
-    localStorage.setItem('kentro-service-bookings', JSON.stringify(updatedBookings));
-    window.dispatchEvent(new Event('kentro-service-bookings-updated'));
+  const handleUpdateStatus = async (taskId, newStatus) => {
+    try {
+      await updateDocument('serviceRequests', taskId, { status: newStatus });
+      await reloadBookings();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update task status.');
+    }
   };
 
   // Filter tasks assigned to this employee
@@ -134,10 +151,10 @@ export default function EmployeeView({ onBackToHome }) {
   );
 
   // Search filtered tasks
-  const filteredTasks = employeeTasks.filter(b => 
+  const filteredTasks = employeeTasks.filter(b =>
     b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     b.phone.includes(searchTerm) ||
-    b.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (b.bookingId || b.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
     (b.soldProduct && b.soldProduct.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -150,7 +167,7 @@ export default function EmployeeView({ onBackToHome }) {
   if (!employeeUser) {
     return (
       <div className="min-h-screen bg-gradient-to-tr from-[#051129] via-[#091E42] to-[#122A59] flex flex-col justify-between items-center py-10 px-4 font-sans select-none text-white relative overflow-hidden">
-        
+
         {/* Glowing visual effect rings */}
         <div className="absolute w-[500px] h-[500px] rounded-full bg-blue-500/10 blur-[120px] -top-32 -left-32 pointer-events-none" />
         <div className="absolute w-[500px] h-[500px] rounded-full bg-indigo-500/10 blur-[120px] -bottom-32 -right-32 pointer-events-none" />
@@ -161,17 +178,17 @@ export default function EmployeeView({ onBackToHome }) {
           className="self-start text-white hover:text-cyan-400 font-extrabold flex items-center space-x-2 text-sm bg-white/5 hover:bg-white/10 px-4.5 py-2.5 rounded-xl transition duration-200 border border-white/10 cursor-pointer shadow-md backdrop-blur-md z-15"
         >
           <ArrowLeft size={16} />
-          <span>Back to Front Store</span>
+          <span>Back to Website</span>
         </button>
 
         {/* Login form container */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           className="w-full max-w-[420px] bg-white/[0.03] backdrop-blur-xl rounded-[32px] border border-white/[0.08] p-8 shadow-2xl flex flex-col -mt-8 z-10 transition duration-300 hover:border-white/[0.12]"
         >
-          
+
           {/* Logo Section */}
           <div className="flex flex-col items-center mb-8">
             <div className="bg-white text-[#0b3178] font-black text-2.5xl px-7 py-1.5 rounded-sm tracking-wider relative flex items-center justify-center shadow-lg">
@@ -217,12 +234,13 @@ export default function EmployeeView({ onBackToHome }) {
               </div>
             )}
 
-            <button
-              type="submit"
-              className="w-full bg-cyan-500 hover:bg-cyan-400 text-[#091E42] py-3.5 rounded-xl font-extrabold text-[14px] shadow-lg shadow-cyan-500/25 transition duration-200 cursor-pointer mt-3 transform active:scale-98"
-            >
-              Sign In to Portal
-            </button>
+             <button
+               type="submit"
+               disabled={isSubmittingLogin}
+               className="w-full bg-cyan-500 hover:bg-cyan-400 disabled:bg-slate-700 text-[#091E42] py-3.5 rounded-xl font-extrabold text-[14px] shadow-lg shadow-cyan-500/25 transition duration-200 cursor-pointer mt-3 transform active:scale-98 flex items-center justify-center gap-2"
+             >
+               {isSubmittingLogin ? 'Verifying Credentials...' : 'Sign In to Portal'}
+             </button>
           </form>
 
           {/* Quick seeded demo credentials note */}
@@ -245,7 +263,7 @@ export default function EmployeeView({ onBackToHome }) {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between font-sans text-slate-800 select-none">
-      
+
       {/* Header Panel */}
       <header className="w-full bg-white border-b border-slate-100 py-3.5 px-6 md:px-10 flex justify-between items-center z-10 shadow-xs">
         <div className="flex items-center space-x-5">
@@ -260,7 +278,7 @@ export default function EmployeeView({ onBackToHome }) {
           </div>
           <span className="text-slate-200 text-lg font-light">|</span>
           <span className="text-xs font-black text-slate-500 flex items-center gap-1.5 bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl shadow-2xs">
-            <UserCheck size={14} className="text-[#0b3178]" /> 
+            <UserCheck size={14} className="text-[#0b3178]" />
             <span className="text-[#091E42] tracking-wider uppercase">Employee Hub</span>
           </span>
         </div>
@@ -283,28 +301,26 @@ export default function EmployeeView({ onBackToHome }) {
 
       {/* Main Grid View */}
       <div className="max-w-7xl w-full mx-auto px-6 md:px-10 py-8 flex-grow grid grid-cols-1 lg:grid-cols-4 gap-8">
-        
+
         {/* Left Sidebar Menu */}
         <aside className="lg:col-span-1 flex flex-col space-y-2">
           <button
             onClick={() => setActiveTab('tasks')}
-            className={`w-full text-left text-[14.5px] font-extrabold py-3.5 px-4 rounded-xl border transition-all duration-200 flex items-center space-x-3 cursor-pointer ${
-              activeTab === 'tasks'
-                ? 'bg-[#0b3178] text-white border-[#0b3178] shadow-md shadow-blue-900/10'
-                : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200/60 hover:border-slate-350/50'
-            }`}
+            className={`w-full text-left text-[14.5px] font-extrabold py-3.5 px-4 rounded-xl border transition-all duration-200 flex items-center space-x-3 cursor-pointer ${activeTab === 'tasks'
+              ? 'bg-[#0b3178] text-white border-[#0b3178] shadow-md shadow-blue-900/10'
+              : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200/60 hover:border-slate-350/50'
+              }`}
           >
             <LayoutDashboard size={17} />
             <span>Assigned Tasks ({totalTasks})</span>
           </button>
-          
+
           <button
             onClick={() => setActiveTab('profile')}
-            className={`w-full text-left text-[14.5px] font-extrabold py-3.5 px-4 rounded-xl border transition-all duration-200 flex items-center space-x-3 cursor-pointer ${
-              activeTab === 'profile'
-                ? 'bg-[#0b3178] text-white border-[#0b3178] shadow-md shadow-blue-900/10'
-                : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200/60 hover:border-slate-350/50'
-            }`}
+            className={`w-full text-left text-[14.5px] font-extrabold py-3.5 px-4 rounded-xl border transition-all duration-200 flex items-center space-x-3 cursor-pointer ${activeTab === 'profile'
+              ? 'bg-[#0b3178] text-white border-[#0b3178] shadow-md shadow-blue-900/10'
+              : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200/60 hover:border-slate-350/50'
+              }`}
           >
             <User size={17} />
             <span>My Profile</span>
@@ -316,18 +332,18 @@ export default function EmployeeView({ onBackToHome }) {
               className="w-full text-left text-[12.5px] font-extrabold text-slate-400 hover:text-[#0b3178] py-2 px-3 rounded-lg hover:bg-slate-100/50 transition duration-150 flex items-center space-x-2 cursor-pointer uppercase tracking-wider"
             >
               <ArrowLeft size={13} />
-              <span>Storefront</span>
+              <span>website</span>
             </button>
           </div>
         </aside>
 
         {/* Right Content Tab */}
         <main className="lg:col-span-3">
-          
+
           {/* Tab 1: Tasks Logs */}
           {activeTab === 'tasks' && (
             <div className="space-y-6 animate-in fade-in duration-200 text-left">
-              
+
               {/* Dashboard Title & stats */}
               <div className="border-b border-slate-200/60 pb-3 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
                 <div>
@@ -349,7 +365,7 @@ export default function EmployeeView({ onBackToHome }) {
 
               {/* Counters Row */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                
+
                 {/* Total */}
                 <div className="bg-white p-4.5 rounded-2xl border border-slate-100 shadow-2xs flex flex-col justify-between">
                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Duties</span>
@@ -380,24 +396,23 @@ export default function EmployeeView({ onBackToHome }) {
               {filteredTasks.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {filteredTasks.map((task) => (
-                    <motion.div 
+                    <motion.div
                       key={task.id}
                       className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs flex flex-col justify-between space-y-5 hover:shadow-md hover:border-slate-200 transition-all duration-300 relative group overflow-hidden"
                     >
                       {/* Left accent strip colored by status */}
-                      <div className={`absolute top-0 bottom-0 left-0 w-1.5 ${
-                        task.status === 'Pending'
-                          ? 'bg-amber-500'
-                          : task.status === 'Finished'
+                      <div className={`absolute top-0 bottom-0 left-0 w-1.5 ${task.status === 'Pending'
+                        ? 'bg-amber-500'
+                        : task.status === 'Finished'
                           ? 'bg-indigo-500'
                           : 'bg-emerald-500'
-                      }`} />
+                        }`} />
 
                       {/* Card Header: ID & Status Toggle */}
                       <div className="flex justify-between items-start">
                         <div>
                           <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold font-mono">
-                            {task.id}
+                            {task.bookingId || task.id}
                           </span>
                           <span className="text-[10px] text-slate-400 font-bold block mt-1.5">{task.createdAt}</span>
                         </div>
@@ -408,13 +423,12 @@ export default function EmployeeView({ onBackToHome }) {
                           <select
                             value={task.status}
                             onChange={(e) => handleUpdateStatus(task.id, e.target.value)}
-                            className={`px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer text-right ${
-                              task.status === 'Pending'
-                                ? 'bg-amber-50 text-amber-700 border-amber-250/70'
-                                : task.status === 'Finished'
+                            className={`px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider focus:outline-none transition cursor-pointer text-right ${task.status === 'Pending'
+                              ? 'bg-amber-50 text-amber-700 border-amber-250/70'
+                              : task.status === 'Finished'
                                 ? 'bg-indigo-50 text-indigo-700 border-indigo-250/70'
                                 : 'bg-emerald-50 text-emerald-700 border-emerald-250/70'
-                            }`}
+                              }`}
                           >
                             <option value="Pending">Pending</option>
                             <option value="Finished">Finished</option>
@@ -425,11 +439,11 @@ export default function EmployeeView({ onBackToHome }) {
 
                       {/* Content block: Customer Details */}
                       <div className="space-y-3 pt-1">
-                        
+
                         {/* Name & Contact */}
                         <div className="space-y-0.5">
                           <p className="text-[14px] font-black text-slate-900 leading-tight">{task.name}</p>
-                          <a 
+                          <a
                             href={`tel:${task.phone}`}
                             className="text-xs text-[#0b3178] hover:underline font-bold flex items-center gap-1 w-fit"
                           >
@@ -449,7 +463,7 @@ export default function EmployeeView({ onBackToHome }) {
 
                         {/* Duty Info */}
                         <div className="grid grid-cols-2 gap-4 text-xs font-semibold">
-                          
+
                           {/* Duty Type */}
                           <div className="space-y-0.5">
                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Work Type</span>
@@ -495,7 +509,7 @@ export default function EmployeeView({ onBackToHome }) {
           {/* Tab 2: Profile Info */}
           {activeTab === 'profile' && (
             <div className="space-y-6 bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-xs text-left animate-in fade-in duration-200">
-              
+
               <div className="border-b border-slate-200/60 pb-3 mb-6 flex justify-between items-center">
                 <div>
                   <h2 className="text-xl md:text-2xl font-black text-[#091E42] tracking-tight">Staff Account Profile</h2>
@@ -507,7 +521,7 @@ export default function EmployeeView({ onBackToHome }) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                
+
                 {/* Profile Card */}
                 <div className="md:col-span-1 bg-[#f8fafc] border border-slate-200/50 rounded-2xl p-6 flex flex-col items-center justify-between text-center space-y-4">
                   <div className="space-y-3">

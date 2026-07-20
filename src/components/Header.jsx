@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, User, ShoppingCart, Menu, X, ChevronDown } from 'lucide-react';
+import { Search, User, Menu, X, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Header({
-  onCartToggle,
-  cartCount,
   onDemoOpen,
   onSearchOpen,
   onProfileOpen,
@@ -84,24 +82,28 @@ export default function Header({
       'Commercial Purifier'
     ],
     'Water Softeners': [
-      'Bathroom Softeners',
-      'Washing Machine Softeners',
-      'Automatic Softeners'
+      'KENT Autosoft',
+      'KENT Iron Removal Filters',
+      'KENT Sand Filters',
+      'KENT Bathroom Water Softener',
+      'KENT Pressure Boosting System'
     ],
     'Kitchen Appliances': [
       'Air Fryers',
-      'Cold Pressed Juicers',
-      'Bread Makers',
-      'Multi Cookers'
+      'Induction Cooktop',
+      'Mixer Grinders',
+      'Hand Blenders',
+      'Electric Chopper'
     ],
     'Home Appliances': [
       'Air Purifiers',
       'Vacuum Cleaners',
-      'Vegetable Cleaners'
+      'Dew Humidifier',
+      'Steam Irons'
     ],
     'New Energy': [
-      'Solar Panels',
-      'Solar Inverters'
+      'Lithium Batteries',
+      'Hybrid Inverters'
     ]
   };
 
@@ -117,160 +119,158 @@ export default function Header({
     switch (type) {
       case 'RO Purifiers':
         return (
-          <div className="w-14 h-18 bg-slate-900 rounded-lg shadow border border-slate-800 p-1 flex flex-col justify-between relative select-none">
-            <span className="text-[4px] text-[#008DDF] font-black leading-none">KENT</span>
-            <div className="h-4 w-full bg-slate-800 border border-slate-700/60 rounded-xs flex items-center justify-center">
-              <div className="w-1.5 h-1.5 bg-[#FF5A00] rounded-full animate-pulse" />
-            </div>
-            <div className="h-5 w-full bg-gradient-to-t from-blue-900/40 to-slate-850 rounded-xs flex items-end justify-center">
-              <div className="w-6 h-0.5 bg-blue-400 rounded-full mb-0.5" />
-            </div>
-            {/* Tiny smartphone mockup next to it representing smart tech */}
-            <div className="absolute -bottom-1 -left-1.5 w-3 h-6 bg-slate-800 rounded-xs border border-slate-700 p-0.5 shadow-md flex items-center justify-center">
-              <div className="w-1.5 h-4 bg-slate-950 rounded-xs flex items-center justify-center">
-                <div className="w-0.5 h-0.5 bg-green-500 rounded-full" />
-              </div>
-            </div>
-          </div>
+          <img 
+            src="/water-purifier/ro-1.webp" 
+            alt="RO Purifiers" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       case 'Hydrogen Rich Water':
         return (
-          <div className="w-14 h-18 bg-slate-100 rounded-lg shadow border border-slate-200 p-1 flex flex-col justify-between relative select-none">
-            <span className="text-[4px] text-slate-800 font-bold leading-none">KENT</span>
-            <div className="flex-grow w-full bg-white/70 rounded border border-slate-200/50 my-1 relative overflow-hidden flex items-center justify-center">
-              <div className="absolute w-1 h-1 bg-cyan-400 rounded-full top-1 left-2 animate-ping" />
-              <div className="absolute w-1 h-1 bg-cyan-400 rounded-full top-2 right-2 animate-pulse" />
-              <div className="w-4 h-6 bg-slate-200 rounded-xs border border-slate-350" />
-            </div>
-            <div className="h-1.5 w-full bg-slate-300 rounded-xs" />
-          </div>
+          <img 
+            src="/water-purifier/hydrogen-rich-water.webp" 
+            alt="Hydrogen Rich Water" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       case 'UV Purifiers':
         return (
-          <div className="w-14 h-18 bg-slate-900 rounded-lg shadow border border-slate-800 p-1.5 flex flex-col justify-between select-none">
-            <span className="text-[4px] text-[#008DDF] font-bold leading-none">KENT</span>
-            <div className="flex-grow w-full bg-purple-900/10 border border-purple-500/20 rounded my-0.5 flex items-center justify-center">
-              <div className="w-1.5 h-5 bg-purple-500/35 rounded-full blur-[1px] animate-pulse" />
-            </div>
-            <div className="h-2 w-full bg-slate-800 rounded-xs" />
-          </div>
+          <img 
+            src="/water-purifier/uv purifier.webp" 
+            alt="UV Purifiers" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       case 'Gravity Purifiers':
         return (
-          <div className="w-14 h-18 flex flex-col items-center justify-center select-none">
-            <div className="w-8 h-6 bg-blue-100/60 border border-blue-300/40 rounded-t-lg relative">
-              <div className="w-3 h-1.5 bg-blue-300/60 rounded-full mx-auto mt-0.5" />
-            </div>
-            <div className="w-10 h-8 bg-blue-200/60 border border-blue-400/40 rounded-b-lg relative flex items-end justify-center p-0.5">
-              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-slate-400 rounded-xs" />
-              <span className="text-[4px] text-blue-900 font-extrabold uppercase">Gold</span>
-            </div>
-          </div>
+          <img 
+            src="/water-purifier/gravity purifier.webp" 
+            alt="Gravity Purifiers" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       case 'Commercial Purifier':
         return (
-          <div className="w-12 h-18 bg-gradient-to-b from-slate-300 to-slate-400 rounded-md shadow border border-slate-400 p-1 flex flex-col justify-between select-none">
-            <div className="w-full h-1.5 bg-slate-700 rounded-xs flex items-center justify-center">
-              <span className="text-[3px] text-slate-100 font-bold leading-none">COMMERCIAL</span>
-            </div>
-            <div className="flex-grow w-full bg-slate-200 rounded border border-slate-300/50 my-0.5 p-0.5 flex flex-col justify-around">
-              <div className="w-full h-0.5 bg-slate-400 rounded-xs" />
-              <div className="w-full h-0.5 bg-slate-400 rounded-xs" />
-            </div>
-            <div className="h-2.5 w-full bg-slate-800 rounded-xs flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
-            </div>
-          </div>
+          <img 
+            src="/water-purifier/commercial-purifier.webp" 
+            alt="Commercial Purifier" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       // Softeners
-      case 'Bathroom Softeners':
+      case 'KENT Autosoft':
         return (
-          <div className="w-12 h-18 bg-slate-100 rounded-lg shadow border border-slate-250 p-1 flex flex-col justify-between select-none">
-            <div className="w-6 h-10 bg-blue-500 rounded-full mx-auto border border-blue-600 flex flex-col justify-around p-0.5">
-              <div className="w-full h-1.5 bg-white/20 rounded-full" />
-              <div className="w-full h-1.5 bg-white/20 rounded-full" />
-            </div>
-            <div className="h-1.5 w-full bg-slate-300 rounded-xs" />
-          </div>
+          <img 
+            src="/water-softner/kent-auto-soft.webp" 
+            alt="KENT Autosoft" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
-      case 'Washing Machine Softeners':
+      case 'KENT Iron Removal Filters':
         return (
-          <div className="w-12 h-18 bg-slate-50 rounded-lg shadow border border-slate-200 p-1 flex flex-col justify-between items-center select-none">
-            <div className="w-6 h-6 rounded-full bg-slate-300 border border-slate-400 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-slate-100 border border-slate-200" />
-            </div>
-            <div className="w-6 h-7 bg-blue-400 rounded-md border border-blue-500" />
-          </div>
+          <img 
+            src="/water-softner/kent-iron-removal-filter.webp" 
+            alt="KENT Iron Removal Filters" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
-      case 'Automatic Softeners':
+      case 'KENT Sand Filters':
         return (
-          <div className="w-14 h-18 bg-slate-200 rounded-lg shadow border border-slate-300 p-1 flex flex-col justify-between select-none">
-            <div className="w-full h-2 bg-slate-850 rounded-xs text-[4px] text-green-400 font-bold text-center">AUTO</div>
-            <div className="flex-grow w-full bg-slate-100 border border-slate-200 rounded my-0.5 flex items-center justify-center">
-              <div className="w-3 h-6 bg-blue-500 rounded-xs" />
-            </div>
-          </div>
+          <img 
+            src="/water-softner/kent-sand-filter.webp" 
+            alt="KENT Sand Filters" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
+        );
+      case 'KENT Bathroom Water Softener':
+        return (
+          <img 
+            src="/water-softner/kent-bathroom-water-softener-1.webp" 
+            alt="KENT Bathroom Water Softener" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
+        );
+      case 'KENT Pressure Boosting System':
+        return (
+          <img 
+            src="/water-softner/kent-pressure-boosting-system.webp" 
+            alt="KENT Pressure Boosting System" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       // Kitchen
       case 'Air Fryers':
         return (
-          <div className="w-12 h-16 bg-slate-900 border border-slate-800 rounded-xl shadow p-1 flex flex-col justify-between items-center select-none">
-            <div className="w-4 h-1 bg-orange-500 rounded-full animate-pulse" />
-            <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center">
-              <div className="w-5 h-5 rounded-full border border-slate-700 bg-slate-950 flex items-center justify-center">
-                <span className="text-[4px] text-orange-400">180°</span>
-              </div>
-            </div>
-          </div>
+          <img 
+            src="/kitchen-appliancs/kent-digital-air-fryer-oven.webp" 
+            alt="Air Fryers" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
-      case 'Cold Pressed Juicers':
+      case 'Induction Cooktop':
         return (
-          <div className="w-11 h-16 bg-slate-100 border border-slate-200 rounded shadow p-1 flex flex-col justify-between items-center select-none">
-            <div className="w-4 h-2.5 bg-slate-300 rounded-t" />
-            <div className="w-7 h-7 bg-orange-400/20 border border-orange-400 rounded-xs flex items-center justify-center">
-              <div className="w-3 h-3 bg-orange-500 rounded-full" />
-            </div>
-            <div className="w-3 h-3 bg-slate-800 rounded-full" />
-          </div>
+          <img 
+            src="/kitchen-appliancs/kent-star-induction-cooktop-1.webp" 
+            alt="Induction Cooktop" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
-      case 'Bread Makers':
+      case 'Mixer Grinders':
         return (
-          <div className="w-14 h-14 bg-slate-50 border border-slate-200 rounded-lg shadow p-1 flex flex-col justify-between select-none">
-            <div className="w-full h-2 bg-slate-200 rounded border border-slate-300" />
-            <div className="w-full h-5 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
-              <div className="w-6 h-2.5 bg-amber-600/30 border border-amber-600 rounded-xs" />
-            </div>
-          </div>
+          <img 
+            src="/kitchen-appliancs/kent-truemix.webp" 
+            alt="Mixer Grinders" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
-      case 'Multi Cookers':
+      case 'Hand Blenders':
         return (
-          <div className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-full shadow flex items-center justify-center p-1 relative select-none">
-            <div className="w-8 h-8 bg-white border border-slate-300 rounded-full flex items-center justify-center">
-              <div className="w-5 h-5 bg-slate-100 border border-slate-200 rounded-full" />
-            </div>
-            <div className="absolute top-0 right-1 w-1 h-2 bg-slate-850 rounded-xs" />
-          </div>
+          <img 
+            src="/kitchen-appliancs/KENT-Hand_Blender-Chopper.webp" 
+            alt="Hand Blenders" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
+        );
+      case 'Electric Chopper':
+        return (
+          <img 
+            src="/kitchen-appliancs/info-web-electric-chopper.webp" 
+            alt="Electric Chopper" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       // Home
       case 'Air Purifiers':
         return (
-          <div className="w-11 h-16 bg-slate-50 border border-slate-200 rounded-t-lg rounded-b shadow p-1 flex flex-col justify-between select-none">
-            <div className="w-full h-1.5 bg-slate-900 rounded-xs text-[3px] text-green-400 font-bold font-mono text-center">AQI 012</div>
-            <div className="flex-grow w-full flex flex-col justify-around py-1">
-              <div className="w-full h-0.5 bg-slate-200 rounded-xs" />
-              <div className="w-full h-0.5 bg-slate-200 rounded-xs" />
-            </div>
-          </div>
+          <img 
+            src="/home-applicances/kent-alps-plus-uv-air-purifier-1.webp" 
+            alt="Air Purifiers" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       case 'Vacuum Cleaners':
         return (
-          <div className="w-14 h-14 bg-slate-100 border border-slate-200 rounded-full shadow flex items-center justify-center relative select-none">
-            <div className="w-8 h-8 rounded-full bg-[#008DDF] flex items-center justify-center text-white">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-          </div>
+          <img 
+            src="/home-applicances/kent-roboklean-r1-robotic-vacuum-cleaner-1.webp" 
+            alt="Vacuum Cleaners" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
+        );
+      case 'Dew Humidifier':
+        return (
+          <img 
+            src="/home-applicances/kent-dew-ultrasonic-humidifier-1.webp" 
+            alt="Dew Humidifier" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
+        );
+      case 'Steam Irons':
+        return (
+          <img 
+            src="/home-applicances/kent-swift-handheld-garment-steamer-1.webp" 
+            alt="Steam Irons" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       case 'Vegetable Cleaners':
         return (
@@ -282,22 +282,21 @@ export default function Header({
           </div>
         );
       // Solar
-      case 'Solar Panels':
+      case 'Lithium Batteries':
         return (
-          <div className="w-14 h-18 bg-blue-950 border border-blue-900 rounded shadow p-0.5 grid grid-cols-3 gap-0.5 select-none">
-            {Array.from({ length: 9 }).map((_, i) => (
-              <div key={i} className="bg-blue-900 border border-blue-850" />
-            ))}
-          </div>
+          <img 
+            src="/new-energy/kent-li-battery-a6-1280-1.webp" 
+            alt="Lithium Batteries" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
-      case 'Solar Inverters':
+      case 'Hybrid Inverters':
         return (
-          <div className="w-12 h-16 bg-slate-800 border border-slate-700 rounded shadow p-1 flex flex-col justify-between select-none">
-            <div className="w-full h-2 bg-slate-900 rounded-xs text-[4px] text-green-400 font-mono text-center">5.2 KW</div>
-            <div className="flex-grow w-full bg-slate-700 rounded my-0.5 flex items-center justify-center">
-              <div className="w-6 h-3 bg-orange-500 rounded-xs" />
-            </div>
-          </div>
+          <img 
+            src="/new-energy/Inverter.webp" 
+            alt="Hybrid Inverters" 
+            className="w-full h-full object-contain mix-blend-multiply" 
+          />
         );
       default:
         return <div className="w-10 h-14 bg-slate-200 rounded select-none" />;
@@ -442,37 +441,14 @@ export default function Header({
               </div>
             )}
 
-            {/* Separator */}
-            <span className="text-slate-200 select-none">|</span>
 
-            {/* Cart Button */}
-            <button
-              onClick={onCartToggle}
-              className="flex items-center space-x-2 text-slate-700 hover:text-[#0b3178] focus:outline-none group"
-              aria-label="Shopping Cart"
-            >
-              <ShoppingCart size={18} className="text-slate-600 group-hover:text-[#0b3178]" />
-              <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-bold min-w-[24px] text-center border border-slate-200">
-                {cartCount}
-              </span>
-            </button>
           </div>
 
         </div>
 
         {/* Mobile Navbar Hamburger Controls */}
         <div className="lg:hidden flex items-center space-x-4">
-          <button
-            onClick={onCartToggle}
-            className="relative p-2 text-slate-600 hover:text-[#0b3178] focus:outline-none"
-          >
-            <ShoppingCart size={20} />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#FF5A00] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {cartCount}
-              </span>
-            )}
-          </button>
+
 
           <button
             className="p-2 text-slate-600 hover:text-[#0b3178] focus:outline-none"

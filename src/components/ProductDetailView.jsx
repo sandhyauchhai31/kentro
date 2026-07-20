@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { Star, ShieldCheck, MapPin, CheckCircle, ChevronRight, ShoppingBag, Plus, Minus, Info, FileText, Settings, Heart } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Star, ShieldCheck, MapPin, CheckCircle, ChevronRight, ShoppingBag, Info, FileText, Settings, Heart, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getFullCatalog } from '../catalogData';
+import { getDocumentById, getDocuments, addDocument } from '../services/firestoreService';
 
-export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) {
+export default function ProductDetailView({ productId }) {
   const [selectedThumb, setSelectedThumb] = useState(0);
-  const [quantity, setQuantity] = useState(1);
   const [pincode, setPincode] = useState('');
   const [pincodeStatus, setPincodeStatus] = useState(null); // null | 'success' | 'error'
   const [pincodeMessage, setPincodeMessage] = useState('');
@@ -17,39 +17,98 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
   const [enquiryPhone, setEnquiryPhone] = useState('');
   const [enquiryMessage, setEnquiryMessage] = useState('');
   const [enquirySuccess, setEnquirySuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
 
-  // Look up product dynamically from catalog
-  const catalog = getFullCatalog();
-  let foundProduct = null;
-  let foundCategory = '';
-  let foundSubCategory = '';
-  for (const [subCat, products] of Object.entries(catalog)) {
-    const match = products.find(p => p.id === productId);
-    if (match) {
-      foundProduct = match;
-      foundSubCategory = subCat;
-      break;
+  const [product, setProduct] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [offers] = useState(() => {
+    try {
+      const s = localStorage.getItem('kentro-offers');
+      return s ? JSON.parse(s) : [];
+    } catch (e) {
+      return [];
     }
-  }
+  });
 
-  // Build product object with sensible defaults
-  const product = foundProduct ? {
-    id: foundProduct.id,
-    name: foundProduct.name,
-    price: foundProduct.price,
-    basePrice: foundProduct.basePrice,
-    rating: foundProduct.rating || 4.5,
-    reviewsCount: foundProduct.reviews || 0,
-    specs: foundProduct.specs || foundProduct.tech || '',
-    color: foundProduct.color ? foundProduct.color[0] : 'White',
-    warranty: foundProduct.warranty || '1 Year Warranty',
-    guarantee: foundProduct.guarantee || '3 Years Free Service Scheme',
-    desc: foundProduct.desc || '',
-    features: foundProduct.features || [],
-    installType: foundProduct.installType || 'Wall Mounted',
-    tech: foundProduct.tech || foundProduct.specs || '',
-    image: foundProduct.image || null
-  } : null;
+  const [selectedOffer, setSelectedOffer] = useState(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState('');
+
+  useEffect(() => {
+    async function loadProduct() {
+      setIsLoading(true);
+      try {
+        let p = await getDocumentById('products', productId);
+        if (!p) {
+          const list = await getDocuments('products');
+          p = list.find(item => item.SKU === productId || item.id === productId);
+        }
+        if (!p) {
+          const catalog = getFullCatalog();
+          for (const subCat of Object.keys(catalog)) {
+            const found = catalog[subCat].find(item => item.id === productId);
+            if (found) {
+              p = {
+                id: found.id,
+                productName: found.name,
+                price: found.price,
+                discountPrice: found.basePrice,
+                rating: found.rating || 4.7,
+                reviews: found.reviews || 120,
+                specifications: found.specs || '',
+                colors: Array.isArray(found.color) ? found.color.join(', ') : (found.color || 'White'),
+                description: found.desc || '',
+                features: found.features || [],
+                installType: found.installType || 'Wall Mounted',
+                tech: found.tech || found.specs || '',
+                imageURLs: [found.image || '/kent-sapphire-iot.png']
+              };
+              break;
+            }
+          }
+        }
+        if (p) {
+          setProduct({
+            id: p.id,
+            name: p.productName,
+            price: p.price,
+            basePrice: p.discountPrice,
+            rating: p.rating || 4.5,
+            reviewsCount: p.reviews || 0,
+            specs: p.specifications || '',
+            color: p.colors || 'White',
+            warranty: p.warranty || '1 Year Warranty',
+            guarantee: p.guarantee || '3 Years Free Service Scheme',
+            desc: p.description || '',
+            features: p.features || [],
+            installType: p.installType || 'Wall Mounted',
+            tech: p.tech || p.specifications || '',
+            image: p.imageURLs?.[0] || null,
+            imageURLs: p.imageURLs || []
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching product details:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadProduct();
+  }, [productId]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-[#0b3178] rounded-full animate-spin" />
+          <p className="text-xs font-bold text-slate-500 tracking-wider uppercase">Loading Product Details...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Product not found fallback
   if (!product) {
@@ -64,23 +123,10 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
     );
   }
 
-  const [offers] = useState(() => {
-    try {
-      const s = localStorage.getItem('kentro-offers');
-      return s ? JSON.parse(s) : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
   const applicableOffers = offers.filter(off =>
     off.status === 'Active' &&
     (off.applicableTo === 'all' || off.applicableTo === product.name)
   );
-
-  const [selectedOffer, setSelectedOffer] = useState(null);
-  const [couponInput, setCouponInput] = useState('');
-  const [couponError, setCouponError] = useState('');
 
   let finalPrice = product.price;
   if (selectedOffer) {
@@ -148,25 +194,7 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
     'filters_diag'       // Mock internal filters diagram representation
   ];
 
-  const handleAddToCartWithQty = () => {
-    for (let i = 0; i < quantity; i++) {
-      onAddToCart({
-        id: product.id,
-        name: product.name,
-        price: finalPrice,
-        color: product.color
-      });
-    }
-  };
 
-  const handleBuyNowClick = () => {
-    onBuyNow({
-      id: product.id,
-      name: product.name,
-      price: finalPrice,
-      color: product.color
-    });
-  };
 
   return (
     <div className="bg-white min-h-screen text-[#121212] select-none font-sans antialiased pb-12">
@@ -481,8 +509,8 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
             </div>
           </div>
 
-          {/* Color & Quantity Selectors */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-b border-slate-100 py-5 select-none">
+          {/* Color Selector */}
+          <div className="border-t border-b border-slate-100 py-5 select-none">
             {/* Color Option */}
             <div className="space-y-2.5">
               <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Color: {product.color}</span>
@@ -490,42 +518,16 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                 <button className="w-8 h-8 rounded-full bg-[#121212] border-2 border-[#0b3178] p-0.5 shadow-sm focus:outline-none cursor-default" />
               </div>
             </div>
-
-            {/* Quantity Option */}
-            <div className="space-y-2.5">
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Quantity</span>
-              <div className="flex items-center border border-slate-350 rounded-xl w-32 justify-between px-2 bg-white">
-                <button
-                  onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
-                  className="p-2 text-slate-500 hover:text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <Minus size={14} />
-                </button>
-                <span className="text-[14px] font-extrabold text-slate-800">{quantity}</span>
-                <button
-                  onClick={() => setQuantity(prev => prev + 1)}
-                  className="p-2 text-slate-500 hover:text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* Call to Action Buttons */}
-          <div className="flex flex-col md:flex-row gap-4 select-none">
+          <div className="select-none">
             <button
               onClick={() => setIsEnquiryModalOpen(true)}
-              className="flex-1 bg-[#0b3178] hover:bg-[#072457] text-white text-[14px] font-bold py-4 rounded-xl shadow-lg transition duration-200 cursor-pointer flex items-center justify-center space-x-2"
+              className="w-full bg-[#0b3178] hover:bg-[#072457] text-white text-[14px] font-bold py-4 rounded-xl shadow-lg transition duration-200 cursor-pointer flex items-center justify-center space-x-2"
             >
               <ShoppingBag size={18} />
               <span>Go for Enquiry</span>
-            </button>
-            <button
-              onClick={handleAddToCartWithQty}
-              className="flex-1 bg-white hover:bg-slate-50 text-[#0b3178] border-2 border-[#0b3178] text-[14px] font-bold py-4 rounded-xl transition duration-200 shadow-xs cursor-pointer text-center"
-            >
-              Add to Cart
             </button>
           </div>
 
@@ -821,25 +823,35 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
             </button>
 
             {!enquirySuccess ? (
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
+                setPhoneError('');
+                setSubmitError('');
+
+                if (!/^[6-9]\d{9}$/.test(enquiryPhone.trim())) {
+                  setPhoneError('Please enter a valid 10-digit mobile number starting with 6-9.');
+                  return;
+                }
+
+                setIsSubmitting(true);
                 const newEnquiry = {
-                  id: Date.now().toString(),
-                  name: enquiryName,
-                  phone: enquiryPhone,
-                  message: enquiryMessage,
-                  productName: product.name,
-                  productId: product.id,
-                  productPrice: finalPrice,
-                  submittedAt: new Date().toLocaleString()
+                  customer: enquiryName.trim(),
+                  mobile: enquiryPhone.trim(),
+                  product: product.name,
+                  message: enquiryMessage.trim(),
+                  date: new Date().toLocaleString(),
+                  status: 'Pending'
                 };
+
                 try {
-                  const existing = JSON.parse(localStorage.getItem('kentro-enquiries') || '[]');
-                  localStorage.setItem('kentro-enquiries', JSON.stringify([...existing, newEnquiry]));
+                  await addDocument('productEnquiries', newEnquiry);
+                  setEnquirySuccess(true);
                 } catch (err) {
                   console.error(err);
+                  setSubmitError('A database connection error occurred. Please try again.');
+                } finally {
+                  setIsSubmitting(false);
                 }
-                setEnquirySuccess(true);
               }} className="space-y-4">
                 <h3 className="text-lg font-black text-[#091E42] tracking-tight">Product Enquiry</h3>
                 <p className="text-xs text-slate-500 font-semibold mb-2">
@@ -872,12 +884,19 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                   <input
                     type="tel"
                     required
-                    pattern="[0-9]{10}"
                     placeholder="10-digit mobile number"
                     value={enquiryPhone}
-                    onChange={(e) => setEnquiryPhone(e.target.value)}
+                    onChange={(e) => {
+                      setEnquiryPhone(e.target.value);
+                      setPhoneError('');
+                    }}
                     className="w-full px-4 py-2.5 bg-white rounded-xl border border-slate-350 focus:border-[#0b3178] focus:outline-none text-[13px] font-semibold"
                   />
+                  {phoneError && (
+                    <span className="text-[10px] text-red-500 font-semibold mt-1 block flex items-center gap-1">
+                      <AlertCircle size={11} /> {phoneError}
+                    </span>
+                  )}
                 </div>
 
                 <div>
@@ -900,11 +919,19 @@ export default function ProductDetailView({ productId, onAddToCart, onBuyNow }) 
                   />
                 </div>
 
+                {submitError && (
+                  <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-100 text-rose-750 text-[10px] font-bold px-3 py-2 rounded-lg mt-2">
+                    <AlertCircle size={13} />
+                    {submitError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-[#0b3178] hover:bg-[#072457] text-white py-3 rounded-xl font-bold text-[13px] shadow-md transition duration-200 cursor-pointer mt-2"
+                  disabled={isSubmitting}
+                  className="w-full bg-[#0b3178] hover:bg-[#072457] disabled:bg-slate-400 text-white py-3 rounded-xl font-bold text-[13px] shadow-md transition duration-200 cursor-pointer mt-2 flex items-center justify-center gap-2"
                 >
-                  Submit Enquiry Request
+                  {isSubmitting ? 'Submitting Enquiry...' : 'Submit Enquiry Request'}
                 </button>
               </form>
             ) : (
